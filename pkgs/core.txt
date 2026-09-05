@@ -1,0 +1,12 @@
+# Core packages
+hyprland
+waybar
+kitty
+zsh
+neovim
+rofi-wayland
+wofi
+wl-clipboard
+grim
+slurp
+mako
