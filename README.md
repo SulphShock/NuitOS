@@ -1,6 +1,6 @@
 # NuitOS
 
-A Hyprland-based Linux desktop configuration.
+An Arch Linux + Hyprland distribution.
 
 ## Structure
 
