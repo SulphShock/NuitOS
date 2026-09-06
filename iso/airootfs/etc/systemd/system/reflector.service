@@ -1,0 +1,12 @@
+[Unit]
+Description= Mirrorlist update via reflector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/reflector --latest 5 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+TimeoutSec=300
+
+[Install]
+WantedBy=multi-user.target

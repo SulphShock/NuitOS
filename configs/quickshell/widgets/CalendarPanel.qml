@@ -10,6 +10,17 @@ Rectangle {
     color: Theme.menuBg
     MouseArea { anchors.fill: parent }
 
+    onVisibleChanged: if (visible) panelIn.restart()
+    NumberAnimation {
+        id: panelIn
+        target: panel
+        property: "opacity"
+        from: 0
+        to: 1
+        duration: 150
+        easing.type: Easing.OutCubic
+    }
+
     Text {
         anchors.top: parent.top
         anchors.horizontalCenter: parent.horizontalCenter

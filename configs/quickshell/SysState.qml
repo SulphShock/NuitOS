@@ -71,9 +71,10 @@ Singleton {
     property int wifiStrength: 0
     property var wifiNetworks: []
     property string wifiError: ""
+    property bool wifiScanning: false
 
     function refreshNetwork() { nmWifi.running = true; nmDev.running = true }
-    function scanWifi() { wifiError = ""; nmScan.running = true }
+    function scanWifi() { wifiError = ""; wifiScanning = true; nmScan.running = true }
     function connectWifi(ssid, password) {
         wifiError = ""
         nmConnect.command = password === ""
@@ -159,7 +160,7 @@ Singleton {
                 root.wifiNetworks = found
             }
         }
-        onExited: exitCode => { if (exitCode !== 0) root.wifiError = "Unable to scan Wi-Fi networks" }
+        onExited: exitCode => { root.wifiScanning = false; if (exitCode !== 0) root.wifiError = "Unable to scan Wi-Fi networks" }
     }
     Process {
         id: nmConnect
@@ -171,6 +172,10 @@ Singleton {
 
     // ─────────────────────────── Bluetooth (bluetoothctl) ───────────────────────────
     property bool btPowered: false
+    property var btDevices: []
+    property var btConnectedAddresses: []
+    property string btError: ""
+    property bool bluetoothScanning: false
     function refreshBt() { btShow.running = true }
     Process {
         id: btShow
@@ -181,6 +186,49 @@ Singleton {
     function setBluetooth(on) {
         btSet.command = ["bluetoothctl", "power", on ? "on" : "off"]
         btSet.running = true
+    }
+    function scanBluetooth() { btError = ""; bluetoothScanning = true; btScan.running = true; btConnectedScan.running = true }
+    function connectBluetooth(address) {
+        btError = ""
+        btConnect.command = ["bluetoothctl", "connect", address]
+        btConnect.running = true
+    }
+    Process {
+        id: btScan
+        command: ["bluetoothctl", "devices"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const found = []
+                for (const line of text.trim().split("\n")) {
+                    const parts = line.trim().split(" ")
+                    if (parts.length >= 3 && parts[0] === "Device")
+                        found.push({ address: parts[1], name: parts.slice(2).join(" ") })
+                }
+                root.btDevices = found
+            }
+        }
+        onExited: exitCode => { root.bluetoothScanning = false; if (exitCode !== 0) root.btError = "Unable to scan Bluetooth devices" }
+    }
+    Process {
+        id: btConnectedScan
+        command: ["bluetoothctl", "devices", "Connected"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const addresses = []
+                for (const line of text.trim().split("\n")) {
+                    const parts = line.trim().split(" ")
+                    if (parts.length >= 2 && parts[0] === "Device") addresses.push(parts[1])
+                }
+                root.btConnectedAddresses = addresses
+            }
+        }
+    }
+    Process {
+        id: btConnect
+        onExited: exitCode => {
+            if (exitCode !== 0) root.btError = "Could not connect to that device"
+            else root.refreshBt()
+        }
     }
 
     // ─────────────────────────── Brightness (backlight sysfs) ───────────────────────
@@ -250,7 +298,6 @@ Singleton {
     function reboot()   { runCmd(["systemctl", "reboot"]) }
     function suspend()  { runCmd(["systemctl", "suspend"]) }
     function hibernate() { runCmd(["systemctl", "hibernate"]) }
-    function idle() { runCmd(["loginctl", "lock-session"]) }
     function lock()     { runCmd(["loginctl", "lock-session"]) }
     function logout()   { runCmd(["loginctl", "terminate-user", root.username]) }
 

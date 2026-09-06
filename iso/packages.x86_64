@@ -1,0 +1,126 @@
+# Base system
+base
+linux
+linux-firmware
+nano
+vim
+git
+sudo
+bash-completion
+networkmanager
+network-manager-applet
+openssh
+rsync
+wget
+curl
+htop
+tmux
+unzip
+man-db
+man-pages
+tlp
+reflector
+
+# Display server
+xorg-server
+xorg-xinit
+xorg-xrandr
+xorg-xset
+xwayland
+
+# Hyprland & Wayland
+hyprland
+hyprpaper
+hypridle
+hyprlock
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-wlr
+xdg-utils
+waybar
+wofi
+mako
+swaylock
+grim
+slurp
+wl-clipboard
+brightnessctl
+playerctl
+polkit-gnome
+dunst
+otf-font-awesome
+ttf-jetbrains-mono-nerd
+noto-fonts
+noto-fonts-emoji
+ttf-liberation
+
+# Terminal
+kitty
+zsh
+zsh-completions
+zsh-autosuggestions
+zsh-syntax-highlighting
+
+# Neovim
+neovim
+ripgrep
+fd
+fzf
+tree-sitter
+nodejs
+npm
+python-pynvim
+
+# File manager
+thunar
+thunar-archive-plugin
+tumbler
+shared-mime-info
+
+# Browser
+firefox
+
+# SDDM
+sddm
+sddm-kcm
+
+# Appearance
+qt5ct
+qt6ct
+kvantum
+kvantum-theme-dark
+papirus-icon-theme
+lxappearance
+
+# Audio
+pipewire
+pipewire-pulse
+pipewire-alsa
+wireplumber
+pavucontrol
+playerctl
+
+# Bluetooth
+bluez
+bluez-utils
+
+# Development
+base-devel
+gcc
+make
+cmake
+pkg-config
+docker
+docker-compose
+
+# Fonts
+ttf-fira-code
+ttf-fantasque-nerd-font
+ttf-cascadia-code
+ttf-jetbrains-mono
+
+# Apps
+file-roller
+vlc
+gimp
+obsidian
+discord

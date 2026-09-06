@@ -13,8 +13,20 @@ Rectangle {
     color: Theme.menuBg
     focus: visible
     property bool wifiExpanded: false
+    property bool bluetoothExpanded: false
     property string wifiPassword: ""
     property string selectedSsid: ""
+
+    onVisibleChanged: if (visible) panelIn.restart()
+    NumberAnimation {
+        id: panelIn
+        target: panel
+        property: "opacity"
+        from: 0
+        to: 1
+        duration: 150
+        easing.type: Easing.OutCubic
+    }
 
     MouseArea { anchors.fill: parent }   // swallow clicks (scrim must not close us)
     Keys.onEscapePressed: {
@@ -25,9 +37,12 @@ Rectangle {
     component QActionButton: Rectangle {
         id: ab
         property string icon
+        property bool active: false
         signal activated()
         implicitWidth: 38; implicitHeight: 38; radius: 12
-        color: am.pressed ? Theme.hoverStrong : am.containsMouse ? Theme.hover : "transparent"
+        color: ab.active ? Theme.hoverStrong
+             : am.pressed ? Theme.hoverStrong
+             : am.containsMouse ? Theme.hover : "transparent"
         opacity: enabled ? 1 : 0.35
         Behavior on color { ColorAnimation { duration: 100 } }
         Text {
@@ -39,11 +54,57 @@ Rectangle {
         MouseArea { id: am; anchors.fill: parent; hoverEnabled: true; onClicked: ab.activated() }
     }
 
+    // Animated expanding flyout shell (used by the Wi-Fi and Bluetooth rows)
+    component ExpandPanel: Rectangle {
+        id: ep
+        property bool expanded: false
+        default property alias contents: epCol.children
+        Layout.fillWidth: true
+        Layout.preferredHeight: ep.expanded ? epCol.implicitHeight + 20 : 0
+        clip: true
+        radius: Theme.radiusMd
+        color: Theme.inactiveBg
+        opacity: ep.expanded ? 1 : 0
+        Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.InOutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 140 } }
+        ColumnLayout {
+            id: epCol
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
+            spacing: 8
+        }
+    }
+
+    // Spinning refresh glyph while a scan is in progress
+    component SpinRefresh: Text {
+        id: spinItem
+        property bool spinning: false
+        text: "↻"
+        color: Theme.text
+        font.pixelSize: 16
+        NumberAnimation on rotation {
+            from: 0
+            to: 360
+            duration: 700
+            loops: Animation.Infinite
+            easing.type: Easing.Linear
+            running: spinItem.spinning
+            onStopped: spinItem.rotation = 0
+        }
+    }
+
     ColumnLayout {
         id: contentCol
         anchors.fill: parent
         anchors.margins: 12
         spacing: 10
+
+        // ── Header ──
+        Text {
+            Layout.fillWidth: true
+            text: "QuickSettings"
+            color: Theme.text
+            font { family: Theme.fontFamily; pixelSize: 15; bold: true }
+        }
 
         // ── Toggle grid ──
         GridLayout {
@@ -67,32 +128,32 @@ Rectangle {
                         if (wifiExpanded) SysState.scanWifi()
                     }
                 }
-                Rectangle {
-                    id: wifiFlyout
-                    visible: panel.wifiExpanded
-                    Layout.fillWidth: true
-                    implicitHeight: wifiCol.implicitHeight + 20
-                    radius: Theme.radiusMd
-                    color: Theme.inactiveBg
-                    opacity: visible ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 160 } }
-                    ColumnLayout {
-                        id: wifiCol
-                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
-                        spacing: 8
+                ExpandPanel {
+                    expanded: panel.wifiExpanded
                         RowLayout {
                             Layout.fillWidth: true
                             Text { text: "🛜"; color: Theme.text; font.pixelSize: 20 }
-                            Text {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: SysState.wifiSsid === "" ? "Wi-Fi networks" : SysState.wifiSsid + "  Connected"
-                                color: Theme.text
-                                font { family: Theme.fontFamily; pixelSize: 12; bold: true }
+                                spacing: 1
+                                Text {
+                                    text: SysState.wifiSsid === "" ? "Wi-Fi networks" : SysState.wifiSsid
+                                    color: Theme.text
+                                    font { family: Theme.fontFamily; pixelSize: 12; bold: true }
+                                }
+                                Text {
+                                    text: SysState.wifiSsid === "" ? "Choose a network to connect" : "Connected"
+                                    color: SysState.wifiSsid === "" ? Theme.dimText : Theme.green
+                                    font { family: Theme.fontFamily; pixelSize: 9; bold: true }
+                                }
                             }
-                            Text {
-                                text: "↻"
-                                color: Theme.text
-                                font.pixelSize: 16
+                            Item {
+                                Layout.preferredWidth: 20
+                                Layout.preferredHeight: 20
+                                SpinRefresh {
+                                    anchors.centerIn: parent
+                                    spinning: SysState.wifiScanning
+                                }
                                 MouseArea { anchors.fill: parent; onClicked: SysState.scanWifi() }
                             }
                         }
@@ -112,9 +173,14 @@ Rectangle {
                                     anchors.fill: parent
                                     anchors.leftMargin: 8
                                     anchors.rightMargin: 8
-                                    Text { text: modelData.secured ? "▣" : "□"; color: Theme.dimText }
-                                    Text { Layout.fillWidth: true; text: modelData.ssid; color: Theme.text; elide: Text.ElideRight; font.pixelSize: 11 }
-                                    Text { text: modelData.strength + "%"; color: Theme.dimText; font.pixelSize: 10 }
+                                    Text { text: modelData.secured ? "▣" : "□"; color: modelData.connected ? Theme.green : Theme.dimText }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 0
+                                        Text { Layout.fillWidth: true; text: modelData.ssid; color: Theme.text; elide: Text.ElideRight; font { family: Theme.fontFamily; pixelSize: 11; bold: modelData.connected } }
+                                        Text { text: modelData.connected ? "Connected" : modelData.secured ? "Secured network" : "Open network"; color: modelData.connected ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9 } }
+                                    }
+                                    Text { text: modelData.strength > 75 ? "▂▄▆█" : modelData.strength > 50 ? "▂▄▆" : modelData.strength > 25 ? "▂▄" : "▂"; color: modelData.connected ? Theme.green : Theme.blue; font.pixelSize: 10 }
                                     MouseArea { anchors.fill: parent; onClicked: { selectedSsid = modelData.ssid; wifiPassword = "" } }
                                 }
                             }
@@ -143,31 +209,112 @@ Rectangle {
                             color: "#FF8A8A"
                             font.pixelSize: 10
                         }
+                }
+            }
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                QSToggle {
+                    Layout.fillWidth: true
+                    icon: SysState.btPowered ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic"
+                    title: "Bluetooth"
+                    subtitle: SysState.btPowered ? (SysState.btDevices.length > 0 ? SysState.btDevices.length + " devices" : "Ready") : "Off"
+                    active: SysState.btPowered
+                    onClicked: {
+                        if (!SysState.btPowered) SysState.setBluetooth(true)
+                        bluetoothExpanded = !bluetoothExpanded
+                        if (bluetoothExpanded) SysState.scanBluetooth()
                     }
+                }
+                ExpandPanel {
+                    expanded: panel.bluetoothExpanded
+                        RowLayout {
+                            Layout.fillWidth: true
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+                                Text { text: "Bluetooth devices"; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 11; bold: true } }
+                                Text { text: SysState.btConnectedAddresses.length > 0 ? SysState.btConnectedAddresses.length + " connected" : "Ready to connect"; color: SysState.btConnectedAddresses.length > 0 ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9; bold: true } }
+                            }
+                            Item {
+                                Layout.preferredWidth: 20
+                                Layout.preferredHeight: 20
+                                SpinRefresh {
+                                    anchors.centerIn: parent
+                                    spinning: SysState.bluetoothScanning
+                                    color: Theme.accent
+                                }
+                                MouseArea { anchors.fill: parent; onClicked: SysState.scanBluetooth() }
+                            }
+                        }
+                        ListView {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Math.min(140, contentHeight)
+                            visible: SysState.btDevices.length > 0
+                            clip: true
+                            model: SysState.btDevices
+                            delegate: Rectangle {
+                                required property var modelData
+                                width: ListView.view.width
+                                height: 34
+                                radius: 9
+                                color: btMouse.containsMouse ? Theme.hover : "transparent"
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 8
+                                    anchors.rightMargin: 8
+                                    Text { text: "ᛒ"; color: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? Theme.green : Theme.foreground; font.pixelSize: 15 }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 0
+                                        Text { Layout.fillWidth: true; text: modelData.name; color: Theme.text; elide: Text.ElideRight; font { family: Theme.fontFamily; pixelSize: 11; bold: true } }
+                                        Text { Layout.fillWidth: true; text: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? "Connected" : modelData.address; color: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9 } }
+                                    }
+                                    Text { text: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? "Connected" : "Connect"; color: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? Theme.green : Theme.accent; font { family: Theme.fontFamily; pixelSize: 9; bold: true } }
+                                }
+                                MouseArea {
+                                    id: btMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: SysState.connectBluetooth(modelData.address)
+                                }
+                            }
+                        }
+                        Text {
+                            visible: SysState.btDevices.length === 0
+                            text: "No paired devices found"
+                            color: Theme.dimText
+                            font { family: Theme.fontFamily; pixelSize: 10 }
+                        }
+                        Text {
+                            visible: SysState.btError !== ""
+                            text: SysState.btError
+                            color: "#FF8A8A"
+                            font { family: Theme.fontFamily; pixelSize: 10 }
+                        }
                 }
             }
             QSToggle {
                 Layout.fillWidth: true
-                icon: SysState.btPowered ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic"
-                title: "Bluetooth"
-                subtitle: SysState.btPowered ? "On" : "Off"
-                active: SysState.btPowered
-                onClicked: SysState.setBluetooth(!SysState.btPowered)
-            }
-            QSToggle {
-                Layout.fillWidth: true
-                icon: "audio-volume-high-symbolic"
+                filled: true
+                icon: panel.volIconName()
                 title: "Volume"
                 subtitle: SysState.muted ? "Muted" : Math.round(SysState.volume * 100) + "%"
+                value: SysState.volume
+                fillColor: Theme.blue
                 active: !SysState.muted
                 onClicked: SysState.toggleMute()
                 onWheelAdjusted: SysState.setVolume(SysState.volume + direction * 0.05)
             }
             QSToggle {
                 Layout.fillWidth: true
+                filled: true
                 icon: "display-brightness-symbolic"
                 title: "Brightness"
                 subtitle: Math.round(SysState.brightness * 100) + "%"
+                value: SysState.brightness
+                fillColor: Theme.blue
                 active: true
                 onClicked: SysState.setBrightness(SysState.brightness > 0.5 ? 0.3 : 0.8)
                 onWheelAdjusted: SysState.setBrightness(SysState.brightness + direction * 0.05)
@@ -319,6 +466,7 @@ Rectangle {
             signal activated()
             implicitWidth: 104; implicitHeight: 36; radius: 18
             color: db.accent ? Theme.accent
+                 : dma.pressed ? Theme.hoverStrong
                  : (dma.containsMouse ? Theme.hover : Theme.inactiveBg)
             Text {
                 anchors.centerIn: parent
@@ -359,6 +507,7 @@ Rectangle {
                 DialogButton { label: "Logout"; onActivated: SysState.logout() }
                 DialogButton { label: "Screensaver"; onActivated: SysState.lock() }
                 DialogButton { label: "Shutdown"; accent: true; onActivated: SysState.powerOff() }
+                DialogButton { label: "Suspend"; onActivated: SysState.suspend() }
             }
         }
     }

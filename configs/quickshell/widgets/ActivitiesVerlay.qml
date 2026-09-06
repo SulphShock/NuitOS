@@ -163,5 +163,14 @@ Rectangle {
             color: Theme.dimText
             font { family: Theme.fontFamily; pixelSize: 13 }
         }
+
+        Text {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            text: "↑ ↓ navigate  ·  ↵ launch  ·  Esc close"
+            color: Theme.dimText
+            font { family: Theme.fontFamily; pixelSize: 10 }
+            opacity: 0.7
+        }
     }
 }

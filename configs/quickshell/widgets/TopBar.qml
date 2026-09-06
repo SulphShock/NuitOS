@@ -67,9 +67,67 @@ PanelWindow {
     }
 
     function cycleWorkspace(direction) {
-        const target = direction > 0 ? "e+1" : "e-1"
+        const target = direction > 0 ? "+1" : "-1"
         workspaceSwitch.command = ["hyprctl", "dispatch", "hl.dsp.focus({ workspace = \"" + target + "\" })"]
         workspaceSwitch.running = true
+    }
+
+    // Fade + scale burp whenever a status icon needs attention
+    function pulseIcon(item) {
+        pulseAnim.target = item
+        pulseAnim.restart()
+    }
+
+    SequentialAnimation {
+        id: pulseAnim
+        property Item target
+        NumberAnimation {
+            target: pulseAnim.target
+            property: "opacity"
+            to: 0.2
+            duration: 90
+            easing.type: Easing.OutQuad
+        }
+        NumberAnimation {
+            target: pulseAnim.target
+            property: "opacity"
+            to: 1
+            duration: 160
+            easing.type: Easing.OutBack
+        }
+    }
+
+    // One status icon chip inside the right-hand pill (network / volume / battery)
+    component StatusIcon: Rectangle {
+        id: chip
+        property string source: ""
+        property color tint: Theme.foreground
+        signal clicked()
+        signal wheelAdjusted(int direction)
+        width: 22; height: 22; radius: 11
+        color: mouse.containsMouse
+            ? (statusPill.color === Theme.accent ? "#40FFFFFF" : Theme.hover)
+            : "transparent"
+        Behavior on color { ColorAnimation { duration: 100 } }
+        WhiteIcon {
+            id: glyph
+            anchors.centerIn: parent
+            size: 15
+            source: chip.source
+            tint: chip.tint
+        }
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: chip.clicked()
+            onWheel: function(wheel) {
+                chip.wheelAdjusted(wheel.angleDelta.y > 0 ? 1 : -1)
+                wheel.accepted = true
+            }
+        }
+        function pulse() { bar.pulseIcon(glyph) }
     }
 
     // ── LEFT: logo launcher + workspaces ──
@@ -82,6 +140,7 @@ PanelWindow {
             height: 26
             radius: 8
             color: logoMouse.containsMouse || SysState.actOpen ? Theme.hover : "transparent"
+            Behavior on color { ColorAnimation { duration: 100 } }
             Image {
                 anchors.centerIn: parent
                 width: 20
@@ -126,6 +185,7 @@ PanelWindow {
                     radius: 7
                     color: Hyprland.focusedWorkspace?.id === modelData ? Theme.accent
                         : workspaceMouse.containsMouse ? Theme.hover : "transparent"
+                    Behavior on color { ColorAnimation { duration: 100 } }
                     Text {
                         anchors.centerIn: parent
                         text: modelData
@@ -184,32 +244,57 @@ PanelWindow {
              : statusMouse.containsMouse ? Theme.hover : "transparent"
         Behavior on color { ColorAnimation { duration: 120 } }
 
-        Row {
-            id: statusRow
-            anchors.centerIn: parent
-            spacing: 9
-                WhiteIcon {
-                    size: 15
-                source: Theme.icon(bar.netIcon)
-                    tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
-            }
-                WhiteIcon {
-                    size: 15
-                source: Theme.icon(bar.volIcon)
-                    tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
-            }
-                WhiteIcon {
-                    size: 15
-                source: Theme.icon(bar.battIcon)
-                    tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
-            }
-        }
         MouseArea {
             id: statusMouse
             anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
             onClicked: SysState.toggleQs()
+        }
+
+        Row {
+            id: statusRow
+            anchors.centerIn: parent
+            spacing: 2
+
+            // Network — click to open Quick Settings
+            StatusIcon {
+                id: netBtn
+                source: Theme.icon(bar.netIcon)
+                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                onClicked: SysState.toggleQs()
+                Connections {
+                    target: SysState
+                    function onWifiSsidChanged() { netBtn.pulse() }
+                    function onWifiEnabledChanged() { netBtn.pulse() }
+                    function onWiredChanged() { netBtn.pulse() }
+                }
+            }
+
+            // Volume — click to mute/unmute, scroll to change level
+            StatusIcon {
+                id: volBtn
+                source: Theme.icon(bar.volIcon)
+                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                onClicked: SysState.toggleMute()
+                onWheelAdjusted: SysState.setVolume(SysState.volume + direction * 0.05)
+                Connections {
+                    target: SysState
+                    function onMutedChanged() { volBtn.pulse() }
+                }
+            }
+
+            // Battery — click opens Quick Settings, scroll adjusts brightness
+            StatusIcon {
+                id: battBtn
+                source: Theme.icon(bar.battIcon)
+                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                onClicked: SysState.toggleQs()
+                onWheelAdjusted: SysState.setBrightness(SysState.brightness + direction * 0.05)
+                Connections {
+                    target: SysState
+                    function onChargingChanged() { battBtn.pulse() }
+                    function onBrightnessChanged() { battBtn.pulse() }
+                }
+            }
         }
     }
 }
