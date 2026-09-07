@@ -97,7 +97,7 @@ Rectangle {
                     spacing: 8
                     Image {
                         width: 26; height: 26
-                        source: Qt.resolvedUrl("../assets/Logo.png")
+                        source: Qt.resolvedUrl("../../Branding/Logo.png")
                         fillMode: Image.PreserveAspectFit
                     }
                     Text {

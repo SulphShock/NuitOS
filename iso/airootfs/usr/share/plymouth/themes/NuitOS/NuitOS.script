@@ -1,0 +1,34 @@
+# Nuit OS plymouth splash — gruvbox dark backdrop with a gently pulsing logo.
+# Solid #282828 background, centered 256px logo, 0.5 Hz opacity pulse.
+
+Window.SetBackgroundTopColor(0.157, 0.157, 0.157);
+Window.SetBackgroundBottomColor(0.157, 0.157, 0.157);
+
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.opacity_angle = 0;
+
+fun refresh_callback()
+{
+  logo.opacity_angle += ((2 * 3.14) / 50) * 0.35;
+  min_opacity = 0.45;
+  opacity = (Math.Cos(logo.opacity_angle) + 1) / 2;
+  opacity *= 1 - min_opacity;
+  opacity += min_opacity;
+  logo.sprite.SetX(Window.GetX() + Window.GetWidth()  / 2 - logo.image.GetWidth()  / 2);
+  logo.sprite.SetY(Window.GetY() + Window.GetHeight() / 2 - logo.image.GetHeight() / 2);
+  logo.sprite.SetOpacity(opacity);
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+fun display_normal_callback()
+{
+  logo.sprite.SetOpacity(1);
+}
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+
+fun quit_callback()
+{
+  logo.sprite.SetOpacity(1);
+}
+Plymouth.SetQuitFunction(quit_callback);

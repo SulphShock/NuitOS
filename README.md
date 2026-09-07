@@ -1,5 +1,5 @@
 
-# 🌙 NuitOS
+# 🌙 Nuit OS
 
 > Arch Linux + Hyprland. Lean. Minimal. Works.
 
@@ -176,7 +176,7 @@ After boot:
 $ neofetch
 ```
 
-- **OS:** NuitOS (Arch Linux)
+- **OS:** Nuit OS (Arch Linux)
 - **WM:** Hyprland
 - **Shell:** zsh
 - **Terminal:** kitty
@@ -188,7 +188,7 @@ $ neofetch
 
 Issues, feature requests, and PRs welcome.
 
-**Keep it lean.** NuitOS is intentionally minimal. Big new features go in userland, not the ISO.
+**Keep it lean.** Nuit OS is intentionally minimal. Big new features go in userland, not the ISO.
 
 **Keep it honest.** If something's broken, say so. If it's a workaround, document why.
 
@@ -210,6 +210,6 @@ MIT. See `LICENSE`.
 ---
 
 <p align="center">
-  <strong>NuitOS</strong> — Hyprland + Arch. Built lean. Built simple. <br>
+  <strong>Nuit OS</strong> — Hyprland + Arch. Built lean. Built simple. <br>
   <a href="https://github.com/SulphShock/NuitOS">View on GitHub</a>
 </p>

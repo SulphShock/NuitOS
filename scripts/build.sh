@@ -8,7 +8,7 @@ WORK_DIR="/tmp/nuitos-build"
 OUT_DIR="$REPO_DIR/out"
 
 echo "╔══════════════════════════════╗"
-echo "║     NuitOS ISO Builder       ║"
+echo "║     Nuit OS ISO Builder       ║"
 echo "╚══════════════════════════════╝"
 echo ""
 

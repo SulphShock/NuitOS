@@ -1,12 +1,12 @@
 #!/bin/bash
-# NuitOS archiso profile definition
+# Nuit OS archiso profile definition
 
 profile_type="iso"
 
 iso_name="NuitOS"
 iso_label="NuitOS"
-iso_publisher="NuitOS <https://github.com/SulphShock/NuitOS>"
-iso_application="NuitOS - Arch Linux + Hyprland"
+iso_publisher="Nuit OS <https://github.com/SulphShock/NuitOS>"
+iso_application="Nuit OS - Arch Linux + Hyprland"
 iso_version="$(date +%Y.%m.%d)"
 install_dir="nuitos"
 bootmodes=('bios.syslinux/legacy' 'uefi-x64.systemd-boot')

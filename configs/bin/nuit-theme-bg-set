@@ -1,0 +1,77 @@
+#!/bin/bash
+# nuit-theme-bg-set — Nuit wallpaper setter (hyprpaper backend)
+# Usage: nuit-theme-bg-set <image-path>
+#   backgrounds live in ~/.config/nuit/backgrounds/[theme]
+#   current wallpaper tracked at ~/.config/nuit/current/background (symlink)
+#   persisted in ~/.config/hypr/hyprpaper.conf, applied via hyprpaper IPC
+set -euo pipefail
+
+THEME="${NUIT_THEME:-${OMARCHY_THEME:-default}}"
+BG_DIR="$HOME/.config/nuit/backgrounds/$THEME"
+CURRENT_LINK="$HOME/.config/nuit/current/background"
+HYPRPAPER_CONF="$HOME/.config/hypr/hyprpaper.conf"
+
+SRC="${1:-}"
+if [ -z "$SRC" ]; then
+  echo "Usage: $(basename "$0") <image-path>" >&2
+  exit 1
+fi
+# Expand ~ and resolve relative paths
+SRC="${SRC/#\~/$HOME}"
+if [ ! -f "$SRC" ]; then
+  echo "File not found: $SRC" >&2
+  exit 1
+fi
+SRC="$(realpath "$SRC")"
+
+mkdir -p "$BG_DIR" "$(dirname "$CURRENT_LINK")" "$(dirname "$HYPRPAPER_CONF")"
+
+# If the file is outside the theme dir, import it (drop files into the theme folder)
+case "$SRC" in
+  "$BG_DIR"/*) TARGET="$SRC" ;;
+  *)
+    TARGET="$BG_DIR/$(basename "$SRC")"
+    if [ "$SRC" != "$TARGET" ]; then
+      cp -n "$SRC" "$TARGET" 2>/dev/null || cp "$SRC" "$TARGET"
+    fi
+    ;;
+esac
+
+# Update current symlink (~/.config/nuit/current/background)
+ln -sfn "$TARGET" "$CURRENT_LINK"
+mkdir -p "$HOME/.config/nuit/current/theme"
+ln -sfn "$BG_DIR" "$HOME/.config/nuit/current/theme/backgrounds"
+
+# Persist in hyprpaper.conf (hyprpaper 0.8 syntax)
+cat > "$HYPRPAPER_CONF" <<EOF
+# Managed by nuit-theme-bg-set — do not hand-edit path (use nuit-theme-bg-next/set)
+ipc = on
+splash = false
+wallpaper {
+    monitor =
+    path = $TARGET
+    fit_mode = cover
+}
+EOF
+
+# Ensure hyprpaper is running
+if ! pgrep -x hyprpaper >/dev/null 2>&1; then
+  hyprpaper >/dev/null 2>&1 &
+  sleep 1
+fi
+
+# Apply live via hyprpaper IPC (0.8.x: `wallpaper MON,PATH` per monitor;
+# reload/preload/unload were removed — wallpaper auto-loads the file)
+if command -v hyprctl >/dev/null 2>&1; then
+  MONITORS="$(hyprctl monitors 2>/dev/null | awk '/^Monitor / {print $2}')"
+  if [ -z "$MONITORS" ]; then
+    hyprctl hyprpaper wallpaper ",$TARGET" 2>/dev/null || true
+  else
+    for m in $MONITORS; do
+      hyprctl hyprpaper wallpaper "$m,$TARGET" 2>/dev/null || true
+    done
+  fi
+fi
+
+notify-send -a Nuit "Background set" "$(basename "$TARGET")" 2>/dev/null || true
+echo "$TARGET"

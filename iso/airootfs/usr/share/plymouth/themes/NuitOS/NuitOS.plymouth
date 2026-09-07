@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Nuit OS
+Description=Gruvbox Nuit OS boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/NuitOS
+ScriptFile=/usr/share/plymouth/themes/NuitOS/NuitOS.script

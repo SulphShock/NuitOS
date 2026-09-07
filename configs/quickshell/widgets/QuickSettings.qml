@@ -484,7 +484,7 @@ Rectangle {
                 spacing: 8
                 Image {
                     width: 30; height: 30
-                    source: Qt.resolvedUrl("../assets/Logo.png")
+                    source: Qt.resolvedUrl("../../Branding/Logo.png")
                     fillMode: Image.PreserveAspectFit
                 }
                 Column {

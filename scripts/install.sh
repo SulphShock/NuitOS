@@ -13,7 +13,7 @@ NC='\033[0m'
 clear
 echo -e "${CYAN}"
 echo "╔══════════════════════════════════════╗"
-echo "║        NuitOS Installer              ║"
+echo "║        Nuit OS Installer              ║"
 echo "║   Arch Linux + Hyprland              ║"
 echo "╚══════════════════════════════════════╝"
 echo -e "${NC}"
@@ -115,7 +115,7 @@ editor   no
 EOF
 
 cat > /boot/loader/entries/arch.conf << EOF
-title   NuitOS
+title   Nuit OS
 linux   /vmlinuz-linux
 initrd  /initramfs-linux.img
 options root=UUID=$(blkid -s UUID -o value $(cat /proc/mounts | grep " / " | awk '{print $1}')) rw
@@ -123,7 +123,7 @@ EOF
 
 # User setup
 read -p "Enter username: " USERNAME
-useradd -m -G wheel,audio,video,storage -s /bin/zsh "$USERNAME"
+useradd -m -G wheel,audio,video,storage,input -s /bin/zsh "$USERNAME"
 echo "Set password for $USERNAME:"
 passwd "$USERNAME"
 
@@ -133,27 +133,95 @@ echo "%wheel ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers.d/wheel
 # Enable services
 systemctl enable NetworkManager
 systemctl enable sddm
+systemctl enable bluetooth
 
 CHROOT
 
 # ── Install Packages ───────────────────────────────────────
-echo -e "${CYAN}[6/7] Installing NuitOS packages${NC}"
+echo -e "${CYAN}[6/7] Installing Nuit OS packages${NC}"
 arch-chroot /mnt pacman -S --needed --noconfirm - < "$REPO_DIR/pkgs/core.txt"
 
 # ── Deploy Configs ─────────────────────────────────────────
-echo -e "${CYAN}[7/7] Deploying NuitOS configs${NC}"
+echo -e "${CYAN}[7/7] Deploying Nuit OS configs${NC}"
 
-# SDDM theme
-arch-chroot /mnt mkdir -p /usr/share/sddm/themes/NuitOS
-cp -r "$REPO_DIR/iso/airootfs/usr/share/sddm/themes/NuitOS/"* /mnt/usr/share/sddm/themes/NuitOS/
+# SDDM theme (Pixie)
+arch-chroot /mnt bash -c '
+git clone https://github.com/xCaptaiN09/pixie-sddm.git /tmp/pixie-sddm
+cp -r /tmp/pixie-sddm /usr/share/sddm/themes/pixie
+rm -rf /tmp/pixie-sddm
+mkdir -p /etc/sddm.conf.d
+echo -e "[Theme]\nCurrent=pixie" > /etc/sddm.conf.d/theme.conf
+'
+
+# SDDM wallpaper helper
+arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/wallpapers/sddm
+arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/wallpapers/backgrounds/default
+arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/wallpapers/current
+arch-chroot /mnt mkdir -p /home/"$USERNAME"/.local/bin
+cat > /mnt/home/"$USERNAME"/.local/bin/sddm-wallpaper << 'SCRIPT'
+#!/bin/bash
+THEME_DIR="/usr/share/sddm/themes/pixie"
+SDDM_DIR="$HOME/.config/wallpapers/sddm"
+WALLPAPER_DIR="$HOME/.config/wallpapers/normal"
+
+if [ -z "$1" ]; then
+    echo "Usage: sddm-wallpaper <path-to-image>"
+    echo ""
+    echo "SDDM wallpapers ($SDDM_DIR):"
+    ls -1 "$SDDM_DIR" 2>/dev/null || echo "  (none)"
+    echo ""
+    echo "Desktop wallpapers ($WALLPAPER_DIR):"
+    ls -1 "$WALLPAPER_DIR" 2>/dev/null || echo "  (none)"
+    exit 1
+fi
+
+if [ ! -f "$1" ]; then
+    echo "Error: File not found: $1"
+    exit 1
+fi
+
+cp "$1" "$SDDM_DIR/$(basename "$1")"
+echo "Saved to $SDDM_DIR/"
+
+sudo cp "$1" "$THEME_DIR/assets/background.jpg"
+if [ $? -eq 0 ]; then
+    echo "SDDM wallpaper updated! Changes apply on next login."
+else
+    echo "Run manually: sudo cp \"$1\" $THEME_DIR/assets/background.jpg"
+fi
+SCRIPT
+arch-chroot /mnt chmod +x /home/"$USERNAME"/.local/bin/sddm-wallpaper
+
+# Nuit helpers (screenshots, wallpaper cycling, capture menu, screen recording)
+cp "$REPO_DIR/configs/bin/"* /mnt/home/"$USERNAME"/.local/bin/
+arch-chroot /mnt chmod +x /home/"$USERNAME"/.local/bin/nuit-*
+arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/nuit/backgrounds/default
+arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/nuit/current
+cp "$REPO_DIR/configs/wallpapers/default/"* /mnt/home/"$USERNAME"/.config/nuit/backgrounds/default/
 
 # Hyprland
 arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/hypr
-ln -sf "$REPO_DIR/configs/hyprland/hyprland.conf" /mnt/home/"$USERNAME"/.config/hypr/hyprland.conf
+arch-chroot /mnt mkdir -p /home/"$USERNAME"/.Pictures/.Wallpapers
+cp "$REPO_DIR/configs/hyprland/hyprland.conf" /mnt/home/"$USERNAME"/.config/hypr/hyprland.conf
+
+# Hyprpaper (generated with the correct home directory)
+cat > /mnt/home/"$USERNAME"/.config/hypr/hyprpaper.conf << EOF
+ipc = on
+splash = false
+wallpaper {
+    monitor =
+    path = /home/$USERNAME/.config/nuit/backgrounds/default/brown_city_planet_w.jpg
+    fit_mode = cover
+}
+EOF
 
 # Quickshell
 arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/quickshell
 cp -r "$REPO_DIR/configs/quickshell/"* /mnt/home/"$USERNAME"/.config/quickshell/
+
+# Branding (shared logo referenced by the quickshell widgets)
+arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/Branding
+cp -r "$REPO_DIR/configs/Branding/." /mnt/home/"$USERNAME"/.config/Branding/
 
 # Neovim
 arch-chroot /mnt mkdir -p /home/"$USERNAME"/.config/nvim
@@ -167,7 +235,7 @@ arch-chroot /mnt chown -R "$USERNAME":"$USERNAME" /home/"$USERNAME"
 
 echo ""
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
-echo -e "${GREEN}  NuitOS installation complete!${NC}"
+echo -e "${GREEN}  Nuit OS installation complete!${NC}"
 echo -e "${GREEN}═══════════════════════════════════════${NC}"
 echo ""
 echo "Reboot and remove the install media."

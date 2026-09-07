@@ -59,7 +59,7 @@ Rectangle {
             Image {
                 width: 42
                 height: 42
-                source: Qt.resolvedUrl("../assets/Logo.png")
+                source: Qt.resolvedUrl("../../Branding/Logo.png")
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 scale: logoMa.containsMouse ? 1.08 : 1

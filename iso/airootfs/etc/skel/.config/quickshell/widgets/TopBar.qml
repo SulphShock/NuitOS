@@ -145,7 +145,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: 20
                 height: 20
-                source: Qt.resolvedUrl("../assets/Logo.png")
+                source: Qt.resolvedUrl("../../Branding/Logo.png")
                 fillMode: Image.PreserveAspectFit
             }
             MouseArea {

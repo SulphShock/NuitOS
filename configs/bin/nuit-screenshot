@@ -1,0 +1,96 @@
+#!/bin/bash
+# nuit-screenshot — Nuit screenshots (grim + slurp backend)
+# Usage: nuit-screenshot [region|window|fullscreen] [both|copy|save]
+#   region      drag a box                                            (default)
+#   window      click once — snaps to the window under the cursor
+#               (click on bar/gap — captures the focused monitor)
+#   fullscreen  capture the focused monitor, no picker
+#   both        save to disk AND copy to clipboard                    (default)
+#   copy        clipboard only
+#   save        disk only
+# Dir: ${NUIT_SCREENSHOT_DIR:-~/Pictures}, files named
+# screenshot-YYYY-MM-DD_HH-MM-SS.png.
+set -euo pipefail
+
+MODE="${1:-region}"
+TARGET="${2:-both}"
+
+usage() { echo "Usage: $(basename "$0") [region|window|fullscreen] [both|copy|save]" >&2; exit 1; }
+case "$MODE" in region|window|fullscreen) ;; *) usage ;; esac
+case "$TARGET" in both|copy|save) ;; *) usage ;; esac
+
+if [ "$TARGET" = "copy" ]; then
+  FILE="$(mktemp /tmp/nuit-shot-XXXXXX.png)"
+  trap 'rm -f "$FILE"' EXIT
+else
+  DIR="${NUIT_SCREENSHOT_DIR:-${OMARCHY_SCREENSHOT_DIR:-$HOME/Pictures}}"
+  mkdir -p "$DIR"
+  FILE="$DIR/screenshot-$(date +%Y-%m-%d_%H-%M-%S).png"
+fi
+
+focused_monitor() {
+  hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true) | .name'
+}
+
+capture_region() {
+  local geo
+  geo="$(slurp 2>/dev/null)" || exit 0    # Esc = dismissed, not an error
+  [ -n "$geo" ] || exit 0
+  grim -g "$geo" "$FILE"
+}
+
+capture_window() {
+  local pt x y geo mon
+  pt="$(slurp -p -f '%x %y' 2>/dev/null)" || exit 0    # Esc = dismissed
+  [ -n "$pt" ] || exit 0
+  x="${pt%% *}"; y="${pt##* }"
+  # topmost mapped window under the cursor (lowest focusHistoryID = front)
+  geo="$(hyprctl clients -j 2>/dev/null | jq -r --argjson x "$x" --argjson y "$y" '
+    [ .[]
+      | select(.mapped == true)
+      | {h: .focusHistoryID, x: .at[0], y: .at[1], w: .size[0], hh: .size[1]}
+      | select($x >= .x and $x < (.x + .w) and $y >= .y and $y < (.y + .hh)) ]
+    | sort_by(.h) | .[0]
+    | if . then "\(.x),\(.y) \(.w)x\(.hh)" else empty end')"
+  if [ -n "$geo" ]; then
+    grim -g "$geo" "$FILE"
+  else
+    # landed on bar or a gap — capture the focused monitor instead
+    mon="$(focused_monitor)"
+    if [ -n "$mon" ]; then grim -o "$mon" "$FILE"; else grim "$FILE"; fi
+  fi
+}
+
+capture_fullscreen() {
+  local mon
+  mon="$(focused_monitor)"
+  if [ -n "$mon" ]; then grim -o "$mon" "$FILE"; else grim "$FILE"; fi
+}
+
+case "$MODE" in
+  region) capture_region ;;
+  window) capture_window ;;
+  fullscreen) capture_fullscreen ;;
+esac
+
+[ -s "$FILE" ] || { echo "Screenshot failed" >&2; exit 1; }
+
+copy_to_clipboard() {
+  wl-copy --type image/png < "$FILE" 2>/dev/null || wl-copy < "$FILE" 2>/dev/null || true
+}
+
+case "$TARGET" in
+  both)
+    copy_to_clipboard
+    notify-send -a Nuit -i "$FILE" "Screenshot saved" "$(basename "$FILE")" 2>/dev/null || true
+    echo "$FILE"
+    ;;
+  copy)
+    copy_to_clipboard
+    notify-send -a Nuit "Screenshot copied to clipboard" 2>/dev/null || true
+    ;;
+  save)
+    notify-send -a Nuit -i "$FILE" "Screenshot saved" "$(basename "$FILE")" 2>/dev/null || true
+    echo "$FILE"
+    ;;
+esac
