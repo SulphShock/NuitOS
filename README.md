@@ -14,7 +14,7 @@ A distro stripped of bloat. Just the essentials: tiling window manager, system t
 - **Omarchy applauncher** — Walker-based fuzzy app search
 - **Minimal packages** — Only what works. Choose your own terminal, shell, editor
 - **CLI utilities** — Quick wrappers for common tasks
-- **Reproducible builds** — Full ISO via `./build.sh`
+- **Reproducible builds** — Pure archiso profile in `iso/`
 
 ---
 
@@ -31,16 +31,15 @@ A distro stripped of bloat. Just the essentials: tiling window manager, system t
 ```bash
 git clone https://github.com/SulphShock/NuitOS.git
 cd NuitOS
-./build.sh iso
+sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 ```
 
 Output: `NuitOS-x86_64.iso` (~2.2 GB) in `./out/`
 
-### Install
+### Run
 
-1. Boot the ISO (UEFI or BIOS)
-2. Run the installer
-3. Reboot into Hyprland
+1. Flash the ISO (UEFI or BIOS)
+2. Boot the live session into Hyprland
 
 Done. You have a working desktop.
 
@@ -55,15 +54,16 @@ NuitOS/
 │   ├── hyprland/         # Window manager
 │   ├── kitty/            # Terminal
 │   └── ...
-├── scripts/
-│   ├── build.sh          # ISO builder
-│   └── ...               # CLI utilities
 ├── pkgs/
-│   ├── base.txt          # Core system packages
-│   ├── gui.txt           # Optional GUI apps
-│   └── dev.txt           # Development tools
-└── airootfs/             # Files bundled into ISO
-    └── etc/              # System configs
+│   ├── core.txt          # Package list
+│   └── ...
+└── iso/                  # archiso profile (pure ISO)
+    ├── profiledef.sh     # ISO definition (required by archiso)
+    ├── packages.x86_64   # Packages bundled into ISO
+    ├── pacman.conf       # Pacman config for build
+    ├── grub/             # Bootloader config
+    └── airootfs/         # Files bundled into ISO
+        └── etc/          # System configs + skel
 ```
 
 ---
@@ -102,13 +102,8 @@ Use waybar, eww, or nothing.
 
 ## 🛠️ Building
 
-### Full build commands
-
 ```bash
-./build.sh iso              # Build ISO only
-./build.sh iso test         # Build and test in QEMU
-./build.sh clean            # Clean artifacts
-./build.sh help             # Show all options
+sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 ```
 
 ### Requirements for building

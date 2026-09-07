@@ -2,6 +2,10 @@
 base
 linux
 linux-firmware
+intel-ucode
+amd-ucode
+syslinux
+mkinitcpio-archiso
 plymouth
 nano
 vim
@@ -27,7 +31,7 @@ xorg-server
 xorg-xinit
 xorg-xrandr
 xorg-xset
-xwayland
+xorg-xwayland
 
 # Hyprland & Wayland
 hyprland
@@ -88,7 +92,6 @@ sddm-kcm
 qt5ct
 qt6ct
 kvantum
-kvantum-theme-dark
 papirus-icon-theme
 lxappearance
 
@@ -109,13 +112,13 @@ base-devel
 gcc
 make
 cmake
-pkg-config
+pkgconf
 docker
 docker-compose
 
 # Fonts
 ttf-fira-code
-ttf-fantasque-nerd-font
+ttf-fantasque-nerd
 ttf-cascadia-code
 ttf-jetbrains-mono
 

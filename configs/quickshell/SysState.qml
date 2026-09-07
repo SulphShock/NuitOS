@@ -231,24 +231,24 @@ Singleton {
         }
     }
 
-    // ─────────────────────────── Brightness (backlight sysfs) ───────────────────────
+    // ─────────────────────────── Brightness (via brightnessctl/logind) ─────────────
     property real brightness: 0.7
     property int blMax: 1
     property string blDevice: ""
     Process {
         id: blProbe
-        command: ["brightnessctl", "-m"]   // name,class,cur,max
+        command: ["brightnessctl", "-m"]   // name,class,cur,pct,max
         stdout: StdioCollector {
             onStreamFinished: {
                 const f = text.trim().split("\n")[0].split(",")
                 root.blDevice = f[0]
-                root.blMax = parseInt(f[3]) || 1
+                root.blMax = parseInt(f[4]) || 1
                 root.brightness = Math.min(1, (parseInt(f[2]) || 1) / root.blMax)
                 blRead.path = "/sys/class/backlight/" + root.blDevice + "/brightness"
             }
         }
     }
-    FileView {   // follow external changes (keyboard keys, etc.)
+    FileView {   // follow external changes (keyboard keys, etc.) — read-only, world-readable
         id: blRead
         watchChanges: true
         onFileChanged: reload()
@@ -257,15 +257,17 @@ Singleton {
             if (!isNaN(v) && root.blMax > 0) root.brightness = Math.min(1, Math.max(0.03, v / root.blMax))
         }
     }
-    FileView { id: blWrite; atomicWrites: true }
+    // NOTE: never write sysfs directly (FileView → EACCES as non-root).
+    // brightnessctl goes through logind D-Bus SetBrightness, so it works unprivileged.
+    Process { id: blSet }
     function setBrightness(v) { brightness = Math.min(1, Math.max(0.03, v)); blCommit.restart() }
     Timer {
         id: blCommit; interval: 40
         onTriggered: {
             if (!root.blDevice) return
-            blWrite.path = "/sys/class/backlight/" + root.blDevice + "/brightness"
-            blWrite.setText(String(Math.max(1, Math.round(root.brightness * root.blMax))))
-            blWrite.waitForJob()
+            blSet.command = ["brightnessctl", "-d", root.blDevice, "-q", "s",
+                String(Math.max(1, Math.round(root.brightness * root.blMax)))]
+            blSet.running = true
         }
     }
 

@@ -3,3 +3,8 @@
 *~
 .DS_Store
 Thumbs.db
+
+# archiso build artifacts
+/out/
+/work/
+*.iso

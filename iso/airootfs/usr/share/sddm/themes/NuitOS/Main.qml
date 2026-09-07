@@ -12,7 +12,7 @@ Greeter {
         Image {
             id: backgroundImage
             anchors.fill: parent
-            source: "/usr/share/backgrounds/nuitos.png"
+            source: "/usr/share/sddm/themes/NuitOS/wallpaper.jpg"
             fillMode: Image.PreserveAspectCrop
             visible: source != ""
         }
