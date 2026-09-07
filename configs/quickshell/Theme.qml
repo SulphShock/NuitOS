@@ -9,7 +9,7 @@ Singleton {
     readonly property int    fontPxSmall: 11
 
     // Geometry
-    readonly property int barHeight: 32
+    readonly property int barHeight: 22
 
     // Palette — gruvbox dark: panel #282828 @ 95%; hover pill cream @ 15%
     property color background:           "#282828"

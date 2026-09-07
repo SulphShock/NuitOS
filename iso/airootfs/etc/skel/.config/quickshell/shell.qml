@@ -15,10 +15,10 @@ ShellRoot {
             // ── The top bar ──
             TopBar { screen: scr.modelData }
 
-            // ── Popup layer (Quick Settings + Calendar) with click-away scrim ──
+            // ── Popup layer (Quick Settings + Calendar + Reminders) with click-away scrim ──
             PanelWindow {
                 screen: scr.modelData
-                visible: SysState.qsOpen || SysState.calOpen || SysState.settingsOpen
+                visible: SysState.qsOpen || SysState.calOpen || SysState.settingsOpen || SysState.remOpen
                 anchors { top: true; bottom: true; left: true; right: true }
                 exclusionMode: ExclusionMode.Ignore
                 color: "transparent"
@@ -42,6 +42,11 @@ ShellRoot {
                     visible: SysState.settingsOpen
                     anchors { top: parent.top; horizontalCenter: parent.horizontalCenter
                               topMargin: Theme.barHeight + 8 }
+                }
+                RemindersPanel {
+                    visible: SysState.remOpen
+                    anchors { top: parent.top; right: parent.right
+                              topMargin: Theme.barHeight + 8; rightMargin: 8 }
                 }
             }
 
@@ -67,5 +72,7 @@ ShellRoot {
         function toggleCalendar()      { SysState.toggleCalendar() }
         function toggleActivities()    { SysState.toggleActivities() }
         function toggleSettings()      { SysState.toggleSettings() }
+        function toggleReminders()     { SysState.toggleReminders() }
+        function setBright(v: real)      { SysState.setBrightness(v) }
     }
 }

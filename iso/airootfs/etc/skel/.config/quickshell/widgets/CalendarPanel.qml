@@ -104,7 +104,7 @@ Rectangle {
                         anchors.centerIn: parent
                         Text {
                             text: "Do Not Disturb"
-                            color: SysState.dnd ? "white" : Theme.text
+                            color: SysState.dnd ? "#1D2021" : Theme.text
                             font { family: Theme.fontFamily; pixelSize: 12 }
                         }
                     }
@@ -260,12 +260,12 @@ Rectangle {
                         radius: 22
                         color: modelData.isToday ? Theme.accent
                              : modelData.isSelected ? Theme.hover
-                             : dayMa.containsMouse ? "#22FFFFFF" : "transparent"
+                             : dayMa.containsMouse ? "#22EBDBB2" : "transparent"
                         Text {
                             anchors.centerIn: parent
                             text: dayCell.modelData.day
-                            color: dayCell.modelData.isToday ? "white"
-                                 : dayCell.modelData.inMonth ? Theme.text : "#55FFFFFF"
+                            color: dayCell.modelData.isToday ? "#FBF1C7"
+                                 : dayCell.modelData.inMonth ? Theme.text : "#55EBDBB2"
                             font { family: Theme.fontFamily; pixelSize: 12; bold: dayCell.modelData.isToday }
                         }
                         MouseArea {

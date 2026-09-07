@@ -12,8 +12,19 @@ PanelWindow {
     screen: modelData
     anchors { top: true; left: true; right: true }
     implicitHeight: Theme.barHeight
-    color: Theme.panelBg                       // #1E1E1E @ 95%
+    color: Theme.panelBg                       // #282828 @ 95%
     WlrLayershell.namespace: "quickshell:gnome-bar"
+
+    // ── bar-wide mouse: scroll anywhere on the bar to switch workspace ──
+    // (chips with their own wheel actions, e.g. volume, sit above and keep priority)
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.NoButton
+        onWheel: function(wheel) {
+            bar.cycleWorkspace(wheel.angleDelta.y > 0 ? 1 : -1)
+            wheel.accepted = true
+        }
+    }
 
     // ── status icon resolution ──
     readonly property string volIcon:
@@ -62,13 +73,15 @@ PanelWindow {
     Process { id: workspaceSwitch }
 
     function switchWorkspace(target) {
-        workspaceSwitch.command = ["hyprctl", "dispatch", "hl.dsp.focus({ workspace = " + String(target) + " })"]
+        workspaceSwitch.command = ["hyprctl", "dispatch",
+            "hl.dsp.focus({ workspace = " + String(target) + " })"]
         workspaceSwitch.running = true
     }
 
     function cycleWorkspace(direction) {
-        const target = direction > 0 ? "+1" : "-1"
-        workspaceSwitch.command = ["hyprctl", "dispatch", "hl.dsp.focus({ workspace = \"" + target + "\" })"]
+        const target = direction > 0 ? "e+1" : "e-1"
+        workspaceSwitch.command = ["hyprctl", "dispatch",
+            "hl.dsp.focus({ workspace = \"" + target + "\" })"]
         workspaceSwitch.running = true
     }
 
@@ -104,15 +117,15 @@ PanelWindow {
         property color tint: Theme.foreground
         signal clicked()
         signal wheelAdjusted(int direction)
-        width: 22; height: 22; radius: 11
+        width: 18; height: 18; radius: 9
         color: mouse.containsMouse
-            ? (statusPill.color === Theme.accent ? "#40FFFFFF" : Theme.hover)
+            ? (statusPill.color === Theme.accent ? "#40EBDBB2" : Theme.hover)
             : "transparent"
         Behavior on color { ColorAnimation { duration: 100 } }
         WhiteIcon {
             id: glyph
             anchors.centerIn: parent
-            size: 15
+            size: 12
             source: chip.source
             tint: chip.tint
         }
@@ -136,16 +149,16 @@ PanelWindow {
         spacing: 8
 
         Rectangle {
-            width: 26
-            height: 26
-            radius: 8
+            width: 20
+            height: 20
+            radius: 6
             color: logoMouse.containsMouse || SysState.actOpen ? Theme.hover : "transparent"
             Behavior on color { ColorAnimation { duration: 100 } }
             Image {
                 anchors.centerIn: parent
-                width: 20
-                height: 20
-                source: Qt.resolvedUrl("../../Branding/Logo.png")
+                width: 16
+                height: 16
+                source: Qt.resolvedUrl("../assets/Logo.png")
                 fillMode: Image.PreserveAspectFit
             }
             MouseArea {
@@ -160,7 +173,7 @@ PanelWindow {
         Item {
             id: workspaceArea
             width: workspaceStrip.implicitWidth
-            height: 26
+            height: 20
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.NoButton
@@ -180,25 +193,25 @@ PanelWindow {
                     id: workspaceButton
                     readonly property var workspace: Hyprland.workspaces?.values.find(w => w.id === modelData) ?? null
                     readonly property bool occupied: (workspace?.toplevels?.values?.length ?? 0) > 0
-                    width: 22
-                    height: 22
-                    radius: 7
+                    width: 18
+                    height: 18
+                    radius: 5
                     color: Hyprland.focusedWorkspace?.id === modelData ? Theme.accent
                         : workspaceMouse.containsMouse ? Theme.hover : "transparent"
                     Behavior on color { ColorAnimation { duration: 100 } }
                     Text {
                         anchors.centerIn: parent
                         text: modelData
-                        color: Hyprland.focusedWorkspace?.id === modelData ? "white" : Theme.dimText
-                        font { family: Theme.fontFamily; pixelSize: 11; bold: true }
+                        color: Hyprland.focusedWorkspace?.id === modelData ? "#1D2021" : Theme.dimText
+                        font { family: Theme.fontFamily; pixelSize: 10; bold: true }
                     }
                     Rectangle {
                         visible: workspaceButton.occupied
                         anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
-                        width: 12
+                        width: 8
                         height: 2
                         radius: 1
-                        color: Hyprland.focusedWorkspace?.id === modelData ? "white" : Theme.foreground
+                        color: Hyprland.focusedWorkspace?.id === modelData ? "#1D2021" : Theme.foreground
                     }
                     MouseArea {
                         id: workspaceMouse
@@ -237,8 +250,8 @@ PanelWindow {
     Rectangle {
         id: statusPill
         anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 8 }
-        width: statusRow.implicitWidth + 20
-        height: 26
+        width: statusRow.implicitWidth + 16
+        height: 20
         radius: height / 2
         color: statusMouse.pressed || SysState.qsOpen ? Theme.accent
              : statusMouse.containsMouse ? Theme.hover : "transparent"
@@ -259,7 +272,7 @@ PanelWindow {
             StatusIcon {
                 id: netBtn
                 source: Theme.icon(bar.netIcon)
-                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleQs()
                 Connections {
                     target: SysState
@@ -273,7 +286,7 @@ PanelWindow {
             StatusIcon {
                 id: volBtn
                 source: Theme.icon(bar.volIcon)
-                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleMute()
                 onWheelAdjusted: SysState.setVolume(SysState.volume + direction * 0.05)
                 Connections {
@@ -282,17 +295,42 @@ PanelWindow {
                 }
             }
 
-            // Battery — click opens Quick Settings, scroll adjusts brightness
+            // Battery — click opens Quick Settings
             StatusIcon {
                 id: battBtn
                 source: Theme.icon(bar.battIcon)
-                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
+                onClicked: SysState.toggleQs()
+                Connections {
+                    target: SysState
+                    function onChargingChanged() { battBtn.pulse() }
+                }
+            }
+
+            // Brightness — scroll to adjust, click opens Quick Settings slider
+            StatusIcon {
+                id: briBtn
+                source: Theme.icon("display-brightness-symbolic")
+                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleQs()
                 onWheelAdjusted: SysState.setBrightness(SysState.brightness + direction * 0.05)
                 Connections {
                     target: SysState
-                    function onChargingChanged() { battBtn.pulse() }
-                    function onBrightnessChanged() { battBtn.pulse() }
+                    function onBrightnessChanged() { briBtn.pulse() }
+                }
+            }
+
+            // Reminders — click opens the reminders panel
+            StatusIcon {
+                id: remBtn
+                source: Theme.icon("alarm-symbolic")
+                tint: SysState.reminders.length > 0
+                    ? (statusPill.color === Theme.accent ? "#1D2021" : Theme.accent)
+                    : (statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground)
+                onClicked: SysState.toggleReminders()
+                Connections {
+                    target: SysState
+                    function onRemindersChanged() { remBtn.pulse() }
                 }
             }
         }

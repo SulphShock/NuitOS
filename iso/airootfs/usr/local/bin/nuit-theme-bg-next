@@ -1,0 +1,57 @@
+#!/bin/bash
+# nuit-theme-bg-next — cycle to next background (Super+Ctrl+Space)
+# Usage: nuit-theme-bg-next [--prev] [--random]
+# Walks ~/.config/nuit/backgrounds/[theme] alphabetically, wraps around.
+set -euo pipefail
+
+THEME="${NUIT_THEME:-${OMARCHY_THEME:-default}}"
+BG_DIR="$HOME/.config/nuit/backgrounds/$THEME"
+CURRENT_LINK="$HOME/.config/nuit/current/background"
+
+MODE="${1:-next}"
+
+mkdir -p "$BG_DIR"
+mapfile -t FILES < <(find "$BG_DIR" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.jxl" \) | sort)
+if [ "${#FILES[@]}" -eq 0 ]; then
+  echo "No backgrounds in $BG_DIR" >&2
+  echo "Add images via: nuit-theme-bg-folder (then copy files in)" >&2
+  exit 1
+fi
+
+CURRENT=""
+if [ -L "$CURRENT_LINK" ]; then
+  CURRENT="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+fi
+
+NEXT=""
+if [ "$MODE" = "--random" ]; then
+  NEXT="$(printf '%s\n' "${FILES[@]}" | shuf -n1)"
+elif [ "$MODE" = "--prev" ]; then
+  if [ -z "$CURRENT" ]; then
+    NEXT="${FILES[-1]}"
+  else
+    for i in "${!FILES[@]}"; do
+      if [ "${FILES[$i]}" = "$CURRENT" ]; then
+        PREV_IDX=$(( (i - 1 + ${#FILES[@]}) % ${#FILES[@]} ))
+        NEXT="${FILES[$PREV_IDX]}"
+        break
+      fi
+    done
+    [ -z "$NEXT" ] && NEXT="${FILES[-1]}"
+  fi
+else
+  if [ -z "$CURRENT" ]; then
+    NEXT="${FILES[0]}"
+  else
+    for i in "${!FILES[@]}"; do
+      if [ "${FILES[$i]}" = "$CURRENT" ]; then
+        NEXT_IDX=$(( (i + 1) % ${#FILES[@]} ))
+        NEXT="${FILES[$NEXT_IDX]}"
+        break
+      fi
+    done
+    [ -z "$NEXT" ] && NEXT="${FILES[0]}"  # current file deleted/renamed → start over
+  fi
+fi
+
+exec nuit-theme-bg-set "$NEXT"

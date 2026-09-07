@@ -1,34 +1,130 @@
-# Nuit OS plymouth splash — gruvbox dark backdrop with a gently pulsing logo.
-# Solid #282828 background, centered 256px logo, 0.5 Hz opacity pulse.
+# Nuit OS plymouth splash — "moonrise"
+# Tokyo-Night sky: faint orbit ring around the brand mark with a glowing moon,
+# twinkling stars, a wide-set wordmark and a chase-dots boot indicator.
 
-Window.SetBackgroundTopColor(0.157, 0.157, 0.157);
-Window.SetBackgroundBottomColor(0.157, 0.157, 0.157);
+# Palette
+# #16161e -> #24203a
+Window.SetBackgroundTopColor(0.086, 0.086, 0.118);
+Window.SetBackgroundBottomColor(0.141, 0.125, 0.227);
 
+ring.image = Image("ring.png");
+moon.image = Image("moon.png");
 logo.image = Image("logo.png");
-logo.sprite = Sprite(logo.image);
-logo.opacity_angle = 0;
+wm.image   = Image("wordmark.png");
+star1.image = Image("star1.png");
+star2.image = Image("star2.png");
+star3.image = Image("star3.png");
+dot.image   = Image("dot.png");
+
+ring.sprite  = Sprite(ring.image);
+moon.sprite  = Sprite(moon.image);
+logo.sprite  = Sprite(logo.image);
+wm.sprite    = Sprite(wm.image);
+star1.sprite = Sprite(star1.image);
+star2.sprite = Sprite(star2.image);
+star3.sprite = Sprite(star3.image);
+dot0.sprite  = Sprite(dot.image);
+dot1.sprite  = Sprite(dot.image);
+dot2.sprite  = Sprite(dot.image);
+dot3.sprite  = Sprite(dot.image);
+
+moon.angle    = 0;
+moon.radius   = 150;   # orbit radius around the ring centre
+tick          = 0;
+
+star1.x_off = -380;  star1.y_off = -300;  star1.phase = 0.0;  star1.speed = 6.5;
+star2.x_off =  340;  star2.y_off = -360;  star2.phase = 2.1;  star2.speed = 9.0;
+star3.x_off =  120;  star3.y_off = -420;  star3.phase = 4.2;  star3.speed = 5.0;
+
+dot.spacing = 44;
+dot.x0      = -66;
 
 fun refresh_callback()
 {
-  logo.opacity_angle += ((2 * 3.14) / 50) * 0.35;
-  min_opacity = 0.45;
-  opacity = (Math.Cos(logo.opacity_angle) + 1) / 2;
-  opacity *= 1 - min_opacity;
-  opacity += min_opacity;
-  logo.sprite.SetX(Window.GetX() + Window.GetWidth()  / 2 - logo.image.GetWidth()  / 2);
-  logo.sprite.SetY(Window.GetY() + Window.GetHeight() / 2 - logo.image.GetHeight() / 2);
-  logo.sprite.SetOpacity(opacity);
+  tick += 1;
+  cx = Window.GetX() + Window.GetWidth()  / 2;
+  cy = Window.GetY() + Window.GetHeight() / 2 - 60;
+
+  # orbit ring + brand mark (stacked at the centre)
+  ring.sprite.SetX(cx - 220); ring.sprite.SetY(cy - 220);
+  logo.sprite.SetX(cx - 128); logo.sprite.SetY(cy - 128);
+
+  # moon orbits the ring
+  moon.angle += 0.045;
+  mx = cx + moon.radius * Math.Cos(moon.angle);
+  my = cy + moon.radius * Math.Sin(moon.angle);
+  moon.sprite.SetX(mx - 48); moon.sprite.SetY(my - 48);
+
+  # wordmark under the mark (image is 674x120)
+  wm.sprite.SetX(cx - 337); wm.sprite.SetY(cy + 170);
+
+  # twinkling stars
+  s = tick / 34;
+  star1.tw = (Math.Cos(s * star1.speed + star1.phase) + 1) / 2;
+  star2.tw = (Math.Cos(s * star2.speed + star2.phase) + 1) / 2;
+  star3.tw = (Math.Cos(s * star3.speed + star3.phase) + 1) / 2;
+  star1.sprite.SetOpacity(0.25 + 0.75 * star1.tw);
+  star2.sprite.SetOpacity(0.25 + 0.75 * star2.tw);
+  star3.sprite.SetOpacity(0.25 + 0.75 * star3.tw);
+
+  star1.sprite.SetScale(0.8);
+  star2.sprite.SetScale(1.0);
+  star3.sprite.SetScale(1.3);
+
+  star1.sprite.SetX(cx + star1.x_off); star1.sprite.SetY(cy + star1.y_off);
+  star2.sprite.SetX(cx + star2.x_off); star2.sprite.SetY(cy + star2.y_off);
+  star3.sprite.SetX(cx + star3.x_off); star3.sprite.SetY(cy + star3.y_off);
+
+  # chase-dots boot indicator
+  dstep = (tick / 5) % 4;
+  d0x = cx + dot.x0;
+  dy  = cy + 300;
+
+  dot0.sprite.SetX(d0x + 0 * dot.spacing); dot0.sprite.SetY(dy);
+  dot1.sprite.SetX(d0x + 1 * dot.spacing); dot1.sprite.SetY(dy);
+  dot2.sprite.SetX(d0x + 2 * dot.spacing); dot2.sprite.SetY(dy);
+  dot3.sprite.SetX(d0x + 3 * dot.spacing); dot3.sprite.SetY(dy);
+
+  dot0.sprite.SetOpacity(0.12);
+  dot1.sprite.SetOpacity(0.12);
+  dot2.sprite.SetOpacity(0.12);
+  dot3.sprite.SetOpacity(0.12);
+
+  if (dstep == 0) { dot0.sprite.SetOpacity(1.0); }
+  if (dstep == 1) { dot1.sprite.SetOpacity(1.0); }
+  if (dstep == 2) { dot2.sprite.SetOpacity(1.0); }
+  if (dstep == 3) { dot3.sprite.SetOpacity(1.0); }
+
+  dnext = (dstep + 1) % 4;
+  if (dnext == 0) { dot0.sprite.SetOpacity(0.45); }
+  if (dnext == 1) { dot1.sprite.SetOpacity(0.45); }
+  if (dnext == 2) { dot2.sprite.SetOpacity(0.45); }
+  if (dnext == 3) { dot3.sprite.SetOpacity(0.45); }
 }
+
 Plymouth.SetRefreshFunction(refresh_callback);
 
 fun display_normal_callback()
 {
   logo.sprite.SetOpacity(1);
+  ring.sprite.SetOpacity(1);
+  moon.sprite.SetOpacity(1);
+  wm.sprite.SetOpacity(1);
+  star1.sprite.SetOpacity(1);
+  star2.sprite.SetOpacity(1);
+  star3.sprite.SetOpacity(1);
+  dot0.sprite.SetOpacity(1);
+  dot1.sprite.SetOpacity(1);
+  dot2.sprite.SetOpacity(1);
+  dot3.sprite.SetOpacity(1);
 }
 Plymouth.SetDisplayNormalFunction(display_normal_callback);
 
 fun quit_callback()
 {
   logo.sprite.SetOpacity(1);
+  ring.sprite.SetOpacity(1);
+  moon.sprite.SetOpacity(1);
+  wm.sprite.SetOpacity(1);
 }
 Plymouth.SetQuitFunction(quit_callback);

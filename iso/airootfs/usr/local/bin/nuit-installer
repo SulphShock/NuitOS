@@ -1,0 +1,324 @@
+#!/bin/bash
+# nuit-installer — NuitOS disk installer (aesthetic TUI)
+#
+# Phase 1 (gum TUI): disk, filesystem, swap, LUKS, locale, keymap, timezone,
+#                    user, hostname, summary.
+# Phase 2 (root, non-interactive): partition + format, pacstrap the NuitOS
+#                    package list, chroot theming (skel, plymouth, SDDM,
+#                    systemd-boot, locale, time, user) and clean first boot.
+#
+# UEFI only (systemd-boot). Run `nuit-installer --dry-run` to print the plan
+# without modifying a single byte.
+
+set -euo pipefail
+
+readonly ACCENT="#c3a6ff"
+readonly DIM="#88849b"
+readonly GOOD="#9ece6a"
+readonly BAD="#f7768e"
+
+DRY_RUN=0
+[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
+
+# Re-exec as root (live user has NOPASSWD sudo); keep the pretty UI.
+if [[ $DRY_RUN -ne 1 && "$(id -u)" -ne 0 ]]; then
+  exec sudo -E "$0" "$@"
+fi
+
+heading() { gum style --padding "0 4" --border rounded --border-foreground "$ACCENT" --foreground "#e0def4" --bold " $1 "; }
+info()    { gum log --time=time --level info "$@"; }
+warn()    { gum log --time=time --level warn "$@"; }
+fail()    { gum log --time=time --level error "$@"; exit 1; }
+prompt()  { gum style --foreground "$DIM" " > $1"; }
+need()    { command -v "$1" >/dev/null 2>&1 || fail "required tool not found: $1"; }
+
+for tool in gum lsblk sgdisk jq pacstrap arch-chroot genfstab bootctl; do
+  need "$tool"
+done
+
+# Reliable device naming for whole-disks like nvme0n1p1 / mmcblk0p1.
+part_suffix() {
+  [[ "$1" =~ ^(nvme|mmcblk|loop) ]] && echo p || true
+}
+
+# ---------------------------------------------------------------- Phase 1 ---
+
+heading "Nuit OS — installer"
+gum style --width 72 --padding "1 2" --foreground "#e0def4" "
+${GOOD}Welcome to Nuit OS.${DIM}  This installer writes a fresh NuitOS system
+(Arch Linux + Hyprland + QuickShell) to a disk of your choice.
+
+It will ${BAD}(permanently erase)${DIM} the target disk. There is no undo —
+back up anything you care about first.
+
+You will be asked a few questions, then shown a summary before anything runs."
+[[ $DRY_RUN -eq 1 ]] && warn "dry-run: the plan will be printed, nothing will be modified"
+echo
+
+# --- Disk ----------------------------------------------------------------
+DISKS_JSON="$(lsblk -J -o NAME,SIZE,MODEL,TYPE,TRAN,MOUNTPOINTS 2>/dev/null)"
+CHOICES="$(jq -r '.blockdevices[] | select(.type=="disk") | "\(.name)\t\(.size)\t\(.model // "unknown")" | gsub("[\t\n]"; " | ")' <<<"$DISKS_JSON")"
+[[ -z "$CHOICES" ]] && fail "no disks found"
+prompt "Select the disk to install onto"
+DISK_LINE="$(printf '%s\n' "$CHOICES" | gum choose --cursor-prefix "$ACCENT ▸ " --selected-prefix "$GOOD ✓ " --header "Disk: name | size | model")"
+DISK="$(grep -oP '^[a-zA-Z0-9]+' <<<"$DISK_LINE")"
+DISK_DEV="/dev/$DISK"
+[[ -e "$DISK_DEV" ]] || fail "invalid disk path: $DISK_DEV"
+MNTD="$(jq -r '.blockdevices[] | select(.name=="'"$DISK"'") | .mountpoints[]? // empty' <<<"$DISKS_JSON")"
+[[ -n "$MNTD" ]] && fail "disk $DISK is mounted at $MNTD — unmount first"
+
+PS="$(part_suffix "$DISK")"
+P1="${DISK_DEV}${PS}1"
+P2=""
+P3=""
+
+# --- Filesystem / swap / encryption --------------------------------------
+prompt "Root filesystem"
+FS="$(printf 'ext4\nbtrfs\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Filesystem")"
+case "$FS" in ext4|btrfs) : ;; *) fail "unsupported filesystem: $FS" ;; esac
+
+prompt "Swap"
+SWAP_OPT="$(printf 'none\nswap partition\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Swap")"
+SWAP_G=""
+if [[ "$SWAP_OPT" == *"swap partition"* ]]; then
+  RAM_GB=$(awk '/MemTotal/ {printf "%.0f", $2/1024/1024}' /proc/meminfo)
+  [[ "$RAM_GB" -lt 1 ]] && RAM_GB=1
+  prompt "Swap size in GiB (0 = none, default = RAM)"
+  SWAP_G="$(gum input --placeholder "${RAM_GB}")"
+  SWAP_G="${SWAP_G:-$RAM_GB}"
+  (( SWAP_G > 128 )) && SWAP_G=128
+fi
+
+prompt "Disk encryption (LUKS2 on root)"
+LUKS_OPT="$(printf 'none\nfull-disk encryption (LUKS2)\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Encryption")"
+LUKS_PASS=""
+[[ "$LUKS_OPT" == *"LUKS2"* ]] && {
+  LUKS_PASS="$(gum input --password --placeholder "encryption passphrase (min 8 chars)")"
+  [[ ${#LUKS_PASS} -lt 8 ]] && fail "passphrase too short"
+  RECHECK="$(gum input --password --placeholder "repeat passphrase")"
+  [[ "$LUKS_PASS" != "$RECHECK" ]] && fail "passphrases do not match"
+}
+
+# --- Locale / keymap / timezone ------------------------------------------
+prompt "Locale"
+LOCALE="$(printf 'en_US.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\nfr_FR.UTF-8 UTF-8\nes_ES.UTF-8 UTF-8\nit_IT.UTF-8 UTF-8\npt_BR.UTF-8 UTF-8\nnl_NL.UTF-8 UTF-8\npl_PL.UTF-8 UTF-8\nru_RU.UTF-8 UTF-8\nja_JP.UTF-8 UTF-8\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Locale")"
+LANG_VAL="${LOCALE%% *}"
+
+prompt "Keymap"
+KEYMAP="$(localectl list-keymaps 2>/dev/null | gum filter --placeholder "search keymap…" --header "Keymap")"
+[[ -z "$KEYMAP" ]] && KEYMAP="us"
+
+prompt "Timezone (type to search)"
+TZ="$(timedatectl list-timezones 2>/dev/null | gum filter --placeholder "search region/city…" --header "Timezone")"
+[[ -z "$TZ" ]] && TZ="Etc/UTC"
+
+# --- User ----------------------------------------------------------------
+prompt "Your full name"
+FULL_NAME="$(gum input --placeholder "Ada Nuit")"
+prompt "Username (lowercase)"
+USERNAME="$(gum input --placeholder "ada")"
+[[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]*$ ]] || fail "invalid username: $USERNAME"
+USER_PASS="$(gum input --password --placeholder "password (min 6 chars)")"
+[[ -z "$USER_PASS" || ${#USER_PASS} -lt 6 ]] && fail "password too short"
+RECHECK="$(gum input --password --placeholder "repeat password")"
+[[ "$USER_PASS" != "$RECHECK" ]] && fail "passwords do not match"
+
+prompt "Hostname"
+HOSTNAME="$(gum input --placeholder "nuitos")"
+[[ "$HOSTNAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]] || HOSTNAME="nuitos"
+
+# --- Summary -------------------------------------------------------------
+heading "Summary"
+gum style --padding "0 2" --foreground "#e0def4" \
+"${GOOD}Disk:${DIM}     $DISK_DEV
+${GOOD}FS:${DIM}       ${FS}  swap=${SWAP_G:-off}  ${LUKS_OPT}
+${GOOD}Locale:${DIM}   ${LANG_VAL}  ${KEYMAP}  ${TZ}
+${GOOD}User:${DIM}     ${USERNAME} (${FULL_NAME:-$USERNAME})  host=${HOSTNAME}"
+
+gum confirm --bg "#1a1b26" --affirmative "GO" --negative "Abort" \
+  "Erase $DISK_DEV and install NuitOS?" || { warn "aborted"; exit 1; }
+
+if [[ $DRY_RUN -eq 1 ]]; then
+  gum style --padding "0 2" --foreground "$GOOD" \
+"PLAN (dry-run, no action taken)
+ - sgdisk GPT on $DISK_DEV: ${P1} ESP 512MiB (ef00)
+   ${SWAP_G:+${DISK_DEV}${PS}2 swap ${SWAP_G}GiB (8200)}  root ${FS} ${LUKS_OPT:+LUKS2}
+ - mount /mnt -> root, ${P1} -> /mnt/boot
+ - pacstrap -K /mnt  \$(cat /usr/local/share/nuit/pkgs-disk.txt)
+ - chroot: skel + usr/local/bin + plymouth + sddm + locale/time/user/hostname
+           + initramfs + systemd-boot (UEFI)"
+  exit 0
+fi
+
+# ---------------------------------------------------------------- Phase 2 ---
+[[ "$(id -u)" -eq 0 ]] || fail "phase 2 must run as root"
+PKG_LIST=/usr/local/share/nuit/pkgs-disk.txt
+[[ -s "$PKG_LIST" ]] || fail "missing package list: $PKG_LIST"
+[[ -d /sys/firmware/efi ]] || fail "UEFI boot required (system not booted in UEFI mode)"
+
+# --- Partition -----------------------------------------------------------
+info "partitioning $DISK_DEV (GPT)"
+sgdisk --zap-all "$DISK_DEV" >/dev/null 2>&1 || true
+sgdisk --new=1:0:+512M --typecode=1:ef00 --change-name=1:ESP "$DISK_DEV" >/dev/null
+ROOT_IDX=2
+ROOT_PART="${DISK_DEV}${PS}2"
+SWAP_PART=""
+if [[ -n "${SWAP_G:-}" ]] && (( SWAP_G > 0 )); then
+  sgdisk --new=2:0:+"${SWAP_G}G" --typecode=2:8200 --change-name=2:swap "$DISK_DEV" >/dev/null
+  SWAP_PART="${DISK_DEV}${PS}2"
+  ROOT_IDX=3
+  ROOT_PART="${DISK_DEV}${PS}3"
+fi
+case "$FS" in btrfs) ROOT_TYPE=8304 ;; *) ROOT_TYPE=8300 ;; esac
+sgdisk --new="${ROOT_IDX}:0:-0" --typecode="${ROOT_IDX}:${ROOT_TYPE}" --change-name="${ROOT_IDX}:nuitroot" "$DISK_DEV" >/dev/null || \
+  fail "partitioning failed on $DISK_DEV"
+partprobe "$DISK_DEV" || true
+sleep 1; udevadm settle || true
+
+TARGET="$ROOT_PART"
+if [[ "$LUKS_OPT" == *"LUKS2"* ]]; then
+  info "formatting LUKS2 on $ROOT_PART"
+  printf '%s' "$LUKS_PASS" | cryptsetup luksFormat --batch-mode --type luks2 -q "$ROOT_PART" -
+  printf '%s' "$LUKS_PASS" | cryptsetup open --type luks2 "$ROOT_PART" cryptroot -
+  TARGET="/dev/mapper/cryptroot"
+fi
+ROOT_UUID="$(blkid -s UUID -o value "$ROOT_PART")"
+
+info "creating filesystems (${FS})"
+mkfs.fat -F32 -n ESP "$P1" >/dev/null
+case "$FS" in
+  btrfs) mkfs.btrfs -f -L NUITROOT "$TARGET" >/dev/null ;;
+  *)     mkfs.ext4 -F -L NUITROOT "$TARGET" >/dev/null ;;
+esac
+if [[ -n "$SWAP_PART" ]]; then
+  mkswap -L swap "$SWAP_PART" >/dev/null
+  swapon "$SWAP_PART" >/dev/null
+fi
+
+info "mounting target"
+mkdir -p /mnt/boot
+mount "$TARGET" /mnt
+mount "$P1" /mnt/boot
+
+info "installing packages (pacstrap)"
+mapfile -t PKGS < "$PKG_LIST"
+[[ ${#PKGS[@]} -gt 0 ]] || fail "empty package list"
+gum spin --spinner dot --title "pacstrap ${#PKGS[@]} packages…" -- pacstrap -K /mnt "${PKGS[@]}"
+
+info "generating fstab"
+genfstab -U /mnt >> /mnt/etc/fstab
+
+# --- Stage 2 (chroot) ----------------------------------------------------
+info "configuring system (chroot stage 2)"
+LUKS_HOOK=""; [[ "$LUKS_OPT" == *"LUKS2"* ]] && LUKS_HOOK="encrypt"
+ROOT_LINE="root=UUID=${ROOT_UUID} rw quiet"
+[[ "$LUKS_OPT" == *"LUKS2"* ]] && ROOT_LINE="cryptdevice=UUID=${ROOT_UUID}:cryptroot root=/dev/mapper/cryptroot rw quiet"
+
+cat > /mnt/root/nuit-stage2.sh <<STAGE2
+#!/bin/bash
+set -euo pipefail
+
+# Skel, helper scripts and artwork from the live image
+cp -a /etc/skel/. /etc/skel/
+cp -a /usr/local/bin/nuit-* /usr/local/bin/ 2>/dev/null || true
+cp -a /usr/share/backgrounds/. /usr/share/backgrounds/ 2>/dev/null || true
+mkdir -p /usr/share/plymouth/themes
+cp -a /usr/share/plymouth/themes/NuitOS/. /usr/share/plymouth/themes/NuitOS/ 2>/dev/null || true
+
+# Plymouth
+cat > /etc/plymouth/plymouthd.conf <<'PLY'
+[Daemon]
+Theme=NuitOS
+ShowDelay=0
+PLY
+
+# SDDM: autologin into the Hyprland session
+cat > /etc/sddm.conf <<'SDDM'
+[Autologin]
+User=${USERNAME}
+Session=hyprland
+[Theme]
+Current=breeze
+SDDM
+
+# Services
+systemctl enable sddm.service
+systemctl enable NetworkManager.service
+systemctl enable bluetooth.service || true
+systemctl enable power-profiles-daemon.service || true
+
+# Hostname / hosts
+echo "${HOSTNAME}" > /etc/hostname
+grep -q "127.0.1.1" /etc/hosts || echo "127.0.1.1 ${HOSTNAME}" >> /etc/hosts
+sed -i "s/^127.0.1.1 .*/127.0.1.1 ${HOSTNAME}/" /etc/hosts
+
+# Locale
+grep -q "^${LOCALE}" /etc/locale.gen || echo "${LOCALE}" >> /etc/locale.gen
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+locale-gen >/dev/null 2>&1
+echo "LANG=${LANG_VAL}" > /etc/locale.conf
+
+# Keymap
+echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
+
+# Timezone + UTC clock
+ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime
+hwclock --systohc --utc || true
+
+# User (skel dotfiles land automatically) + policy config
+if ! id ${USERNAME} &>/dev/null; then
+  useradd -m -G wheel,audio,video,storage -s /bin/bash ${USERNAME}
+  echo "${USERNAME}:${USER_PASS}" | chpasswd
+fi
+passwd -l root 2>/dev/null || true
+sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+grep -q '^%wheel ALL=(ALL:ALL) ALL' /etc/sudoers || echo '%wheel ALL=(ALL:ALL) ALL' >> /etc/sudoers
+
+# Initramfs with plymouth (and LUKS encrypt hook when needed)
+cat > /etc/mkinitcpio.conf <<'MK'
+MODULES=()
+BINARIES=()
+FILES=()
+HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block ${LUKS_HOOK} filesystems plymouth fsck)
+COMPRESSION=(zstd)
+MK
+mkinitcpio -P >/dev/null 2>&1 || true
+
+# Bootloader (systemd-boot)
+bootctl --esp-path=/boot --boot-path=/boot install >/dev/null 2>&1 || true
+mkdir -p /boot/loader /boot/loader/entries
+cat > /boot/loader/loader.conf <<'LD'
+default  nuitos.conf
+timeout   3
+console-mode max
+editor    no
+LD
+cat > /boot/loader/entries/nuitos.conf <<'ENT'
+title   Nuit OS
+linux   /vmlinuz-linux
+initrd  /intel-ucode.img
+initrd  /amd-ucode.img
+initrd  /initramfs-linux.img
+options ${ROOT_LINE}
+ENT
+STAGE2
+
+chmod +x /mnt/root/nuit-stage2.sh
+gum spin --spinner line --title "stage 2: users, theming, initramfs, bootloader…" -- \
+  arch-chroot /mnt /bin/bash /root/nuit-stage2.sh
+rm -f /mnt/root/nuit-stage2.sh
+
+sync
+umount -R /mnt || true
+[[ -n "$SWAP_PART" ]] && swapoff -a || true
+[[ "$LUKS_OPT" == *"LUKS2"* ]] && cryptsetup close cryptroot || true
+
+heading "Done"
+gum style --padding "0 2" --foreground "$GOOD" \
+"${GOOD}Nuit OS installed.${DIM}
+ - user ${USERNAME} (password sudo, root locked)
+ - host ${HOSTNAME} · ${LANG_VAL} · ${KEYMAP} · ${TZ}
+ - ${FS} root ${LUKS_OPT:+· LUKS2 }· systemd-boot · SDDM autologin
+ - remove the installation media, then reboot"
+gum confirm --bg "#1a1b26" --affirmative "Reboot now" --negative "Stay in live session" \
+  && systemctl reboot || info "done — reboot anytime with: systemctl reboot"

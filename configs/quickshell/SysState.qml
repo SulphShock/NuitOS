@@ -15,12 +15,14 @@ Singleton {
     property bool calOpen: false
     property bool actOpen: false
     property bool settingsOpen: false
+    property bool remOpen: false
     property string username: "user"
-    function closeAll() { qsOpen = calOpen = actOpen = settingsOpen = false }
+    function closeAll() { qsOpen = calOpen = actOpen = settingsOpen = remOpen = false }
     function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
     function toggleCalendar()   { const v = calOpen;   closeAll(); calOpen   = !v }
     function toggleActivities() { const v = actOpen;   closeAll(); actOpen   = !v }
     function toggleSettings()   { const v = settingsOpen; closeAll(); settingsOpen = !v }
+    function toggleReminders()  { const v = remOpen;    closeAll(); remOpen   = !v }
 
     readonly property SystemClock clock: SystemClock { precision: SystemClock.Seconds }
 
@@ -82,7 +84,7 @@ Singleton {
             : ["nmcli", "device", "wifi", "connect", ssid, "password", password]
         nmConnect.running = true
     }
-    Component.onCompleted: { refreshNetwork(); refreshBt(); blProbe.running = true; ppGet.running = true; whoami.running = true }
+    Component.onCompleted: { refreshNetwork(); refreshBt(); blProbe.running = true; ppGet.running = true; whoami.running = true; remMkdir.running = true }
 
     Process {
         id: whoami
@@ -309,5 +311,102 @@ Singleton {
         launcher.command = ["sh", "-c", cmd + " >/dev/null 2>&1 &"]
         launcher.running = true
         closeAll()
+    }
+
+    // ─────────────────────────── Reminders ──────────────────────────────
+    // persisted at ~/.local/share/nuit/reminders.json as [{id, text, when}]
+    property var reminders: []
+    property int remSeq: 0
+    readonly property string remFile: "/home/" + root.username + "/.local/share/nuit/reminders.json"
+
+    // "15m", "2h", "1h30m" from now, or "HH:MM" today (tomorrow if passed)
+    function parseReminderWhen(s) {
+        s = (s || "").trim().toLowerCase()
+        let m = s.match(/^(\d+)\s*m(in)?$/)
+        if (m) return Date.now() + parseInt(m[1]) * 60000
+        m = s.match(/^(\d+)\s*h(ours?)?$/)
+        if (m) return Date.now() + parseInt(m[1]) * 3600000
+        m = s.match(/^(\d+)\s*h\s*(\d+)\s*m?$/)
+        if (m) return Date.now() + (parseInt(m[1]) * 60 + parseInt(m[2])) * 60000
+        m = s.match(/^(\d{1,2}):(\d{2})$/)
+        if (m) {
+            const d = new Date()
+            d.setHours(parseInt(m[1]), parseInt(m[2]), 0, 0)
+            if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1)
+            return d.getTime()
+        }
+        return 0
+    }
+    function reminderLabel(when) {
+        const ms = when - Date.now()
+        if (ms <= 0) return "due"
+        const min = Math.floor(ms / 60000)
+        if (min < 60) return "in " + min + "m"
+        const h = Math.floor(min / 60)
+        if (h < 24) return "in " + h + "h" + (min % 60 ? " " + (min % 60) + "m" : "")
+        return Qt.formatDateTime(new Date(when), "ddd h:mm AP")
+    }
+    function addReminder(text, whenStr) {
+        const t = (text || "").trim()
+        const when = parseReminderWhen(whenStr)
+        if (!t || !when) return false
+        remSeq += 1
+        reminders = reminders.concat([{ id: remSeq, text: t, when: when }])
+            .sort((a, b) => a.when - b.when)
+        saveReminders()
+        return true
+    }
+    function delReminder(id) {
+        reminders = reminders.filter(r => r.id !== id)
+        saveReminders()
+    }
+    function refreshReminders() {
+        remLoad.reload()
+    }
+    function saveReminders() {
+        remWrite.path = root.remFile
+        remWrite.setText(JSON.stringify(reminders))
+    }
+    function fireDueReminders() {
+        const now = Date.now()
+        const due = reminders.filter(r => r.when <= now)
+        if (due.length === 0) return
+        reminders = reminders.filter(r => r.when > now)
+        saveReminders()
+        for (const r of due) {
+            remNotify.command = ["notify-send", "-a", "Nuit", "-u", "critical", "Reminder", r.text]
+            remNotify.running = true
+        }
+    }
+    Process { id: remNotify }
+    Process {
+        id: remMkdir
+        command: ["sh", "-c", "mkdir -p \"$HOME/.local/share/nuit\""]
+        onExited: remLoad.reload()
+    }
+    FileView {
+        id: remLoad
+        path: root.remFile
+        watchChanges: true
+        onLoaded: {
+            try {
+                const arr = JSON.parse(text)
+                if (Array.isArray(arr)) {
+                    root.reminders = arr.filter(r => r && r.when > Date.now() - 60000)
+                        .sort((a, b) => a.when - b.when)
+                    for (const r of root.reminders)
+                        if (r.id > root.remSeq) root.remSeq = r.id
+                }
+            } catch (e) { root.reminders = [] }
+        }
+    }
+    FileView {
+        id: remWrite
+        atomicWrites: true
+    }
+    Timer {
+        id: remTimer
+        interval: 15000; repeat: true; running: true; triggeredOnStart: true
+        onTriggered: root.fireDueReminders()
     }
 }

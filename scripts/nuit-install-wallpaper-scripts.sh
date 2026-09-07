@@ -1,28 +1,29 @@
 #!/bin/bash
+# Install NuitOS wallpaper/theme scripts to ~/.local/bin (dev/local machines).
+# The ISO ships these directly at /usr/local/bin instead.
 
-# Install NuitOS wallpaper scripts
-# This script installs the wallpaper utilities to ~/.local/bin
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_BIN="$HOME/.local/bin"
 
-# Create local bin directory if it doesn't exist
 mkdir -p "$LOCAL_BIN"
 
-# Copy scripts
-cp "$SCRIPT_DIR/nuit-random-wallpaper.sh" "$LOCAL_BIN/nuit-random-wallpaper"
-cp "$SCRIPT_DIR/nuit-setup-wallpapers.sh" "$LOCAL_BIN/nuit-setup-wallpapers"
-
-# Make scripts executable
-chmod +x "$LOCAL_BIN/nuit-random-wallpaper"
-chmod +x "$LOCAL_BIN/nuit-setup-wallpapers"
+for script in \
+    nuit-random-wallpaper \
+    nuit-theme-bg-set \
+    nuit-theme-bg-next \
+    nuit-theme-bg-folder \
+    nuit-theme-bg-current \
+; do
+    install -Dm755 "$SCRIPT_DIR/$script.sh" "$LOCAL_BIN/$script" 2>/dev/null \
+        || install -Dm755 "$SCRIPT_DIR/$script" "$LOCAL_BIN/$script"
+done
 
 # Add to PATH if not already there
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.zshrc"
 fi
 
-echo "Wallpaper scripts installed successfully!"
-echo "Run 'nuit-setup-wallpapers' to copy system wallpapers to your local directory"
-echo "Run 'nuit-random-wallpaper' to set a random wallpaper"
+echo "Wallpaper scripts installed to $LOCAL_BIN"
+echo "Run 'nuit-theme-bg-next' to cycle backgrounds, 'nuit-random-wallpaper' for a random one."

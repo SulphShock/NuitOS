@@ -158,7 +158,7 @@ PanelWindow {
                 anchors.centerIn: parent
                 width: 16
                 height: 16
-                source: Qt.resolvedUrl("../../Branding/Logo.png")
+                source: Qt.resolvedUrl("../assets/Logo.png")
                 fillMode: Image.PreserveAspectFit
             }
             MouseArea {
@@ -295,17 +295,42 @@ PanelWindow {
                 }
             }
 
-            // Battery — click opens Quick Settings, scroll adjusts brightness
+            // Battery — click opens Quick Settings
             StatusIcon {
                 id: battBtn
                 source: Theme.icon(bar.battIcon)
                 tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleQs()
-                onWheelAdjusted: SysState.setBrightness(SysState.brightness + direction * 0.05)
                 Connections {
                     target: SysState
                     function onChargingChanged() { battBtn.pulse() }
-                    function onBrightnessChanged() { battBtn.pulse() }
+                }
+            }
+
+            // Brightness — scroll to adjust, click opens Quick Settings slider
+            StatusIcon {
+                id: briBtn
+                source: Theme.icon("display-brightness-symbolic")
+                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
+                onClicked: SysState.toggleQs()
+                onWheelAdjusted: SysState.setBrightness(SysState.brightness + direction * 0.05)
+                Connections {
+                    target: SysState
+                    function onBrightnessChanged() { briBtn.pulse() }
+                }
+            }
+
+            // Reminders — click opens the reminders panel
+            StatusIcon {
+                id: remBtn
+                source: Theme.icon("alarm-symbolic")
+                tint: SysState.reminders.length > 0
+                    ? (statusPill.color === Theme.accent ? "#1D2021" : Theme.accent)
+                    : (statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground)
+                onClicked: SysState.toggleReminders()
+                Connections {
+                    target: SysState
+                    function onRemindersChanged() { remBtn.pulse() }
                 }
             }
         }

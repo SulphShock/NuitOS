@@ -3,7 +3,7 @@
 
 > Arch Linux + Hyprland. Lean. Minimal. Works.
 
-A distro stripped of bloat. Just the essentials: tiling window manager, system topbar, app launcher, and nothing else. Build it, boot it, work.
+A distro stripped to the essentials: tiling window manager, system topbar, app launcher, and a small curated set of daily-use apps. Build it, boot it, work.
 
 ---
 
@@ -11,7 +11,7 @@ A distro stripped of bloat. Just the essentials: tiling window manager, system t
 
 - **Hyprland** — Tiling window manager configured for daily use
 - **QuickShell topbar** — D-Bus integrated status bar with quick settings, calendar, notifications
-- **Omarchy applauncher** — Walker-based fuzzy app search
+- **App launcher** — `wofi` for fuzzy app search, plus QuickShell's in-shell Activities grid
 - **Minimal packages** — Only what works. Choose your own terminal, shell, editor
 - **CLI utilities** — Quick wrappers for common tasks
 - **Reproducible builds** — Pure archiso profile in `iso/`
@@ -34,7 +34,7 @@ cd NuitOS
 sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 ```
 
-Output: `NuitOS-x86_64.iso` (~2.2 GB) in `./out/`
+Output: `NuitOS-YYYY.MM.DD-x86_64.iso` (~3 GB) in `./out/`
 
 ### Run
 
@@ -52,7 +52,7 @@ NuitOS/
 ├── configs/              # Default application configs
 │   ├── quickshell/       # Topbar (QuickShell/QML)
 │   ├── hyprland/         # Window manager
-│   ├── kitty/            # Terminal
+│   ├── ghostty/          # Terminal
 │   └── ...
 ├── pkgs/
 │   ├── core.txt          # Package list
@@ -74,19 +74,22 @@ All configs are **editable before build** or **after install** in `~/.config/`.
 
 ### Change the terminal
 
-Edit `pkgs/base.txt`:
+Edit `iso/packages.x86_64`:
 ```diff
-- kitty
-+ ghostty
+- ghostty
++ alacritty
 ```
 
 Then rebuild the ISO.
 
 ### Change the shell
 
+NuitOS ships **bash** by default. To use another shell, add it to `iso/packages.x86_64` and
+point the `-s` flag in `iso/airootfs/root/customize_airootfs.sh` at it:
+
 ```diff
-- zsh
-+ bash
+- useradd -m -G wheel,audio,video,storage -s /bin/bash nuitos
++ useradd -m -G wheel,audio,video,storage -s /bin/fish nuitos
 ```
 
 ### Use your own topbar
@@ -122,7 +125,7 @@ sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 ## 📦 What's Included (Base)
 
 **Core:**
-- Arch Linux base + linux-lts kernel
+- Arch Linux base + `linux` kernel
 - Hyprland + Wayland stack
 - systemd boot loader
 
@@ -132,17 +135,18 @@ sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 - Wayland support libraries
 
 **Essentials:**
-- `kitty` (terminal)
-- `zsh` (shell)
-- `vim` (editor)
+- `ghostty` (terminal)
+- `bash` (shell)
+- `neovim` + `vim` (editors)
+- `thunar` (file manager)
 - NetworkManager (networking)
 - `git`
 
 **Fonts:**
 - JetBrains Mono Nerd Font
-- Inter
+- Fira Code, Fantasque, Cascadia (with `ttf-jetbrains-mono` fallback)
 
-**Nothing else.** Want Firefox? Install it. Docker? Install it. The ISO doesn't ship bloat.
+**Also ships:** `firefox`, `docker` + `docker-compose`, `vlc`, `gimp`, `obsidian`, `discord`, `file-roller` — a bootable, day-one desktop. Add anything else with AUR via `yay`.
 
 ---
 
@@ -152,11 +156,22 @@ Hyprland defaults:
 
 | Key | Action |
 |-----|--------|
-| <kbd>Super</kbd> + <kbd>Return</kbd> | Open terminal |
-| <kbd>Super</kbd> + <kbd>Space</kbd> | App launcher |
-| <kbd>Super</kbd> + <kbd>Q</kbd> | Close window |
-| <kbd>Super</kbd> + <kbd>F</kbd> | Fullscreen |
-| <kbd>Super</kbd> + <kbd>1-9</kbd> | Switch workspace |
+| <kbd>Super</kbd> + <kbd>Return</kbd> | Open terminal (ghostty) |
+| <kbd>Super</kbd> + <kbd>Space</kbd> | App launcher (wofi) |
+| <kbd>Super</kbd> + <kbd>C</kbd> | Close window |
+| <kbd>Super</kbd> + <kbd>V</kbd> | Toggle floating |
+| <kbd>Super</kbd> + <kbd>P</kbd> | Pseudo-tile |
+| <kbd>Super</kbd> + <kbd>J</kbd> | Toggle split |
+| <kbd>Super</kbd> + <kbd>1-0</kbd> | Switch workspace |
+| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>1-0</kbd> | Move window to workspace |
+| <kbd>Super</kbd> + <kbd>S</kbd> | Quick Settings |
+| <kbd>Super</kbd> + <kbd>T</kbd> | Calendar |
+| <kbd>Super</kbd> + <kbd>A</kbd> | Activities (app grid) |
+| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Settings panel |
+| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> | Random wallpaper |
+| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | Open file manager (thunar) |
+| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd> | Open browser (firefox) |
+| <kbd>PrtSc</kbd> / <kbd>Shift</kbd>+<kbd>PrtSc</kbd> | Screenshot region → clipboard / file |
 | <kbd>Super</kbd> + Click/Drag | Move/resize window |
 
 Full config: `configs/hyprland/hyprland.conf`
@@ -173,8 +188,8 @@ $ neofetch
 
 - **OS:** Nuit OS (Arch Linux)
 - **WM:** Hyprland
-- **Shell:** zsh
-- **Terminal:** kitty
+- **Shell:** bash
+- **Terminal:** ghostty
 - **Font:** JetBrains Mono Nerd
 
 ---
@@ -200,7 +215,7 @@ MIT. See `LICENSE`.
 - [Arch Linux](https://archlinux.org)
 - [Hyprland Docs](https://hyprland.org)
 - [QuickShell](https://github.com/outfoxxed/quickshell)
-- [Walker](https://github.com/abenz1267/walker)
+- [wofi](https://sr.ht/~scooter/wofi/)
 
 ---
 

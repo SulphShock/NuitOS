@@ -8,12 +8,9 @@ neovim
 slurp
 grim
 jq
-fuzzel
 libreoffice-fresh
 mako
-waybar
-wofi
-kitty
+ghostty
 thunar
 hyprpolkitagent
 xfce4-power-manager

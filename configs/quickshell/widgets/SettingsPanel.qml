@@ -21,6 +21,15 @@ Rectangle {
     property var themes: []
     property var selectedTheme: null
 
+    // Run a Nuit background tool, preferring PATH (ISO: /usr/local/bin)
+    // and falling back to the local ~/.local/bin install (host machines).
+    function bgScript(name, arg) {
+        const a = (arg !== undefined && arg !== "") ? " \"" + arg.replace(/"/g, "") + "\"" : ""
+        return ["sh", "-c",
+            "if command -v " + name + " >/dev/null 2>&1; then " + name +
+            a + "; else \"$HOME/.local/bin/" + name + "\"" + a + "; fi"]
+    }
+
     Process {
         id: wpList
         command: ["sh", "-c", "find \"$HOME/.config/nuit/backgrounds/default\" -maxdepth 1 -type f \\( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.jxl' \\) 2>/dev/null | sort; echo '---CURRENT---'; readlink -f \"$HOME/.config/nuit/current/background\" 2>/dev/null"]
@@ -40,15 +49,15 @@ Rectangle {
     }
     function setWallpaper(path) {
         const safe = String(path).replace(/"/g, "")
-        wpApply.command = ["sh", "-c", "\"$HOME/.local/bin/nuit-theme-bg-set\" \"" + safe + "\""]
+        wpApply.command = bgScript("nuit-theme-bg-set", safe)
         wpApply.running = true
     }
     function nextWallpaper() {
-        wpApply.command = ["sh", "-c", "\"$HOME/.local/bin/nuit-theme-bg-next\""]
+        wpApply.command = bgScript("nuit-theme-bg-next")
         wpApply.running = true
     }
     function openWallpaperFolder() {
-        wpApply.command = ["sh", "-c", "\"$HOME/.local/bin/nuit-theme-bg-folder\" >/dev/null 2>&1 &"]
+        wpApply.command = ["sh", "-c", "( " + bgScript("nuit-theme-bg-folder")[2] + " ) >/dev/null 2>&1 &"]
         wpApply.running = true
     }
 
@@ -108,7 +117,7 @@ Rectangle {
             else {
                 // Import into the Nuit backgrounds dir and apply live
                 const src = String(selectedFile).replace("file://", "")
-                wpApply.command = ["sh", "-c", "cp -n \"" + src.replace(/"/g, "") + "\" \"$HOME/.config/nuit/backgrounds/default/\" 2>/dev/null; \"$HOME/.local/bin/nuit-theme-bg-set\" \"" + src.replace(/"/g, "") + "\""]
+                wpApply.command = ["sh", "-c", "cp -n \"" + src.replace(/"/g, "") + "\" \"$HOME/.config/nuit/backgrounds/default/\" 2>/dev/null; " + bgScript("nuit-theme-bg-set", src.replace(/"/g, ""))[2]]
                 wpApply.running = true
             }
         }
@@ -135,7 +144,7 @@ Rectangle {
                     spacing: 8
                     Image {
                         width: 26; height: 26
-                        source: Qt.resolvedUrl("../../Branding/Logo.png")
+                        source: Qt.resolvedUrl("../assets/Logo.png")
                         fillMode: Image.PreserveAspectFit
                     }
                     Text {

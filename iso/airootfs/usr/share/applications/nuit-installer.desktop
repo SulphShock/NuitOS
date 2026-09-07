@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Nuit OS Installer
+Comment=Install Nuit OS to the internal disk (wipes target disk)
+Exec=nuit-installer
+Type=Application
+Terminal=true
+Categories=System;
+Icon=system-software-install
+NoDisplay=false
