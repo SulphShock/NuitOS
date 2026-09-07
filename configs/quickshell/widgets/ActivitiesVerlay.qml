@@ -6,7 +6,7 @@ import ".."
 
 Rectangle {
     id: overlay
-    color: "#E6202020"
+    color: "#E61D2021"
 
     property var apps: []
     property bool appsLoaded: false
@@ -82,13 +82,13 @@ Rectangle {
             font { family: Theme.fontFamily; pixelSize: 14 }
             color: Theme.text
             placeholderText: "Type to search"
-            placeholderTextColor: "#99FFFFFF"
+            placeholderTextColor: "#99EBDBB2"
             verticalAlignment: TextInput.AlignVCenter
             leftPadding: 18; rightPadding: 18
             background: Rectangle {
                 radius: height / 2
-                color: "#33FFFFFF"
-                border.color: search.activeFocus ? "#66FFFFFF" : "#22FFFFFF"
+                color: "#33EBDBB2"
+                border.color: search.activeFocus ? "#66EBDBB2" : "#22EBDBB2"
                 border.width: 1
                 Behavior on border.color { ColorAnimation { duration: 140 } }
             }

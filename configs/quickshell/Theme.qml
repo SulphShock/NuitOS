@@ -11,21 +11,21 @@ Singleton {
     // Geometry
     readonly property int barHeight: 32
 
-    // Palette — panel #1E1E1E @ 95%; hover pill white @ 15%
-    property color background:           "#1E1E1E"
-    property color foreground:           "#FFFFFF"
-    property color green:                "#78B159"
-    property color blue:                 "#3584E4"
-    property color yellow:               "#E28B30"
-    property color panelBg:              "#F21E1E1E"
-    property color menuBg:               "#F21E1E1E"
-    property color hover:                "#26FFFFFF"
-    property color hoverStrong:          "#40FFFFFF"
-    property color inactiveBg:           "#1FFFFFFF"
-    property color outline:              "#22FFFFFF"
-    property color text:                 "#FFFFFF"
-    property color dimText:              "#B3FFFFFF"
-    property color accent:               "#3584E4"
+    // Palette — gruvbox dark: panel #282828 @ 95%; hover pill cream @ 15%
+    property color background:           "#282828"
+    property color foreground:           "#EBDBB2"
+    property color green:                "#B8BB26"
+    property color blue:                 "#83A598"
+    property color yellow:               "#FABD2F"
+    property color panelBg:              "#F2282828"
+    property color menuBg:               "#F2282828"
+    property color hover:                "#26EBDBB2"
+    property color hoverStrong:          "#40EBDBB2"
+    property color inactiveBg:           "#1FEBDBB2"
+    property color outline:              "#22EBDBB2"
+    property color text:                 "#EBDBB2"
+    property color dimText:              "#B3EBDBB2"
+    property color accent:               "#83A598"
 
     // Radii (GNOME shell menus ≈ 24, controls ≈ 14)
     readonly property int radiusLg: 24

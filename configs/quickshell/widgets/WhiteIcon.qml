@@ -4,7 +4,7 @@ import QtQuick.Effects
 Item {
     id: root
     property url source
-    property color tint: "white"
+    property color tint: "#EBDBB2"
     property real size: 20
     implicitWidth: size
     implicitHeight: size

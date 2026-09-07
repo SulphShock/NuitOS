@@ -200,13 +200,13 @@ Rectangle {
                             implicitHeight: 30
                             radius: 10
                             color: Theme.accent
-                            Text { anchors.centerIn: parent; text: "Connect"; color: "white"; font.pixelSize: 11; font.bold: true }
+                            Text { anchors.centerIn: parent; text: "Connect"; color: "#1D2021"; font.pixelSize: 11; font.bold: true }
                             MouseArea { anchors.fill: parent; onClicked: { SysState.connectWifi(selectedSsid, wifiPassword); selectedSsid = "" } }
                         }
                         Text {
                             visible: SysState.wifiError !== ""
                             text: SysState.wifiError
-                            color: "#FF8A8A"
+                            color: "#FB4934"
                             font.pixelSize: 10
                         }
                 }
@@ -290,7 +290,7 @@ Rectangle {
                         Text {
                             visible: SysState.btError !== ""
                             text: SysState.btError
-                            color: "#FF8A8A"
+                            color: "#FB4934"
                             font { family: Theme.fontFamily; pixelSize: 10 }
                         }
                 }
@@ -351,7 +351,7 @@ Rectangle {
                 title: "Power"
                 subtitle: "Session actions"
                 active: true
-                activeColor: "#8F2020"
+                activeColor: "#CC241D"
                 onClicked: {
                     powerDialog.visible = true
                     powerDialog.forceActiveFocus()
@@ -471,7 +471,7 @@ Rectangle {
             Text {
                 anchors.centerIn: parent
                 text: db.label
-                color: db.accent ? "white" : Theme.text
+                color: db.accent ? "#1D2021" : Theme.text
                 font { family: Theme.fontFamily; pixelSize: 13; bold: true }
             }
             MouseArea { id: dma; anchors.fill: parent; hoverEnabled: true; onClicked: db.activated() }

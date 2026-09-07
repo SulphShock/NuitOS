@@ -12,7 +12,7 @@ PanelWindow {
     screen: modelData
     anchors { top: true; left: true; right: true }
     implicitHeight: Theme.barHeight
-    color: Theme.panelBg                       // #1E1E1E @ 95%
+    color: Theme.panelBg                       // #282828 @ 95%
     WlrLayershell.namespace: "quickshell:gnome-bar"
 
     // ── status icon resolution ──
@@ -106,7 +106,7 @@ PanelWindow {
         signal wheelAdjusted(int direction)
         width: 22; height: 22; radius: 11
         color: mouse.containsMouse
-            ? (statusPill.color === Theme.accent ? "#40FFFFFF" : Theme.hover)
+            ? (statusPill.color === Theme.accent ? "#40EBDBB2" : Theme.hover)
             : "transparent"
         Behavior on color { ColorAnimation { duration: 100 } }
         WhiteIcon {
@@ -189,7 +189,7 @@ PanelWindow {
                     Text {
                         anchors.centerIn: parent
                         text: modelData
-                        color: Hyprland.focusedWorkspace?.id === modelData ? "white" : Theme.dimText
+                        color: Hyprland.focusedWorkspace?.id === modelData ? "#1D2021" : Theme.dimText
                         font { family: Theme.fontFamily; pixelSize: 11; bold: true }
                     }
                     Rectangle {
@@ -198,7 +198,7 @@ PanelWindow {
                         width: 12
                         height: 2
                         radius: 1
-                        color: Hyprland.focusedWorkspace?.id === modelData ? "white" : Theme.foreground
+                        color: Hyprland.focusedWorkspace?.id === modelData ? "#1D2021" : Theme.foreground
                     }
                     MouseArea {
                         id: workspaceMouse
@@ -259,7 +259,7 @@ PanelWindow {
             StatusIcon {
                 id: netBtn
                 source: Theme.icon(bar.netIcon)
-                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleQs()
                 Connections {
                     target: SysState
@@ -273,7 +273,7 @@ PanelWindow {
             StatusIcon {
                 id: volBtn
                 source: Theme.icon(bar.volIcon)
-                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleMute()
                 onWheelAdjusted: SysState.setVolume(SysState.volume + direction * 0.05)
                 Connections {
@@ -286,7 +286,7 @@ PanelWindow {
             StatusIcon {
                 id: battBtn
                 source: Theme.icon(bar.battIcon)
-                tint: statusPill.color === Theme.accent ? "white" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleQs()
                 onWheelAdjusted: SysState.setBrightness(SysState.brightness + direction * 0.05)
                 Connections {

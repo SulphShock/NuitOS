@@ -6,7 +6,7 @@ Greeter {
 
     Rectangle {
         anchors.fill: parent
-        color: "#1E1E1E"
+        color: "#282828"
 
         // Background image
         Image {
@@ -31,9 +31,10 @@ Greeter {
             // Logo
             Image {
                 anchors.horizontalCenter: parent.horizontalCenter
-                source: "/usr/share/sddm/themes/NuitOS/logo.svg"
+                source: "logo.png"
                 sourceSize.width: 128
                 sourceSize.height: 128
+                smooth: false
                 visible: status == Image.Ready
             }
 
@@ -44,7 +45,7 @@ Greeter {
                 font.family: "JetBrains Mono Nerd Font"
                 font.pixelSize: 24
                 font.bold: true
-                color: "#FFFFFF"
+                color: "#EBDBB2"
             }
 
             // Password input
@@ -63,7 +64,7 @@ Greeter {
                     anchors.margins: 10
                     font.family: "JetBrains Mono Nerd Font"
                     font.pixelSize: 14
-                    color: "#FFFFFF"
+                    color: "#EBDBB2"
                     echoMode: TextInput.Password
                     clip: true
                     focus: true
@@ -100,7 +101,7 @@ Greeter {
                     font.family: "JetBrains Mono Nerd Font"
                     font.pixelSize: 14
                     font.bold: true
-                    color: "#FFFFFF"
+                    color: "#EBDBB2"
                 }
 
                 MouseArea {
@@ -138,7 +139,7 @@ Greeter {
                         anchors.centerIn: parent
                         text: "⏻"
                         font.pixelSize: 18
-                        color: "#FFFFFF"
+                        color: "#EBDBB2"
                     }
 
                     MouseArea {
@@ -161,7 +162,7 @@ Greeter {
                         anchors.centerIn: parent
                         text: "⟳"
                         font.pixelSize: 18
-                        color: "#FFFFFF"
+                        color: "#EBDBB2"
                     }
 
                     MouseArea {
@@ -181,7 +182,7 @@ Greeter {
             font.family: "JetBrains Mono Nerd Font"
             font.pixelSize: 48
             font.bold: true
-            color: "#FFFFFF"
+            color: "#EBDBB2"
         }
     }
 
