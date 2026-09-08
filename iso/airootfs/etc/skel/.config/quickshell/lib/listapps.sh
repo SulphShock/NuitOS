@@ -1,45 +1,87 @@
 #!/bin/sh
 # Prints: Name<TAB>Exec<TAB>Icon for every launchable .desktop entry
-# Hidden: avahi-utils, qt v4l2 utils, xgps utils, hyprlauncher, volume control, hardware tools
-HIDDEN="avahi|v4l2|xgps|hyprlauncher|volume contro|pavucontrol|volumeicon|pulseaudio|hardinfo|cpu-x|lshw|hardware"
+# Sources: pacman/yay (/usr/share, /usr/local, ~/.local) + flatpak (system + user)
+# Icon: absolute path when found, else themed name (QML resolves via Quickshell.iconPath)
 
 APP_DIRS="$HOME/.local/share/applications /usr/local/share/applications /usr/share/applications /var/lib/flatpak/exports/share/applications $HOME/.local/share/flatpak/exports/share/applications"
-ICON_DIRS="/usr/share/icons/hicolor /var/lib/flatpak/exports/share/icons/hicolor $HOME/.local/share/flatpak/exports/share/icons/hicolor"
+
+# Hidden on request: avahi utils, xgps utils, hardware locality (lstopo),
+# Nuit OS Installer, Volume Control. Matched against the .desktop basename + Name.
+HIDDEN="avahi|bssh|bvnc|xgps|v4l2|qv4l2|qvidcap|lstopo|hardware locality|nuit-installer|nuit os installer|pavucontrol|volume control"
 
 resolve_icon() {
     local name="$1"
-    [ -z "$name" ] && return
+    [ -z "$name" ] && { echo "application-x-executable"; return; }
     case "$name" in
-        /*) echo "$name"; return ;;
+        /*)
+            # absolute path: add extension if missing
+            if [ -f "$name" ]; then echo "$name"; return; fi
+            for ext in .svg .png .xpm; do
+                if [ -f "$name$ext" ]; then echo "$name$ext"; return; fi
+            done
+            echo "$name"; return ;;
+        *.*)
+            # already has extension but relative? keep as-is, QML falls back
+            case "$name" in *.png|*.svg|*.xpm) echo "$name"; return ;; esac
+            ;;
     esac
-    local found
-    found=$(find $ICON_DIRS -type f \( -name "${name}.svg" -o -name "${name}.png" \) -path "*/apps/*" 2>/dev/null | head -1)
-    if [ -n "$found" ]; then
-        echo "$found"
-    else
-        echo "$name"
-    fi
+    local found=""
+    # 1) pixmaps (vscode, etc.): /usr/share/pixmaps/<name>.{png,svg,xpm}
+    for ext in png svg xpm; do
+        if [ -f "/usr/share/pixmaps/${name}.${ext}" ]; then
+            echo "/usr/share/pixmaps/${name}.${ext}"; return
+        fi
+        if [ -f "$HOME/.local/share/pixmaps/${name}.${ext}" ]; then
+            echo "$HOME/.local/share/pixmaps/${name}.${ext}"; return
+        fi
+    done
+    # 2) fast path: exact stem match under well-known icon roots (prefer big/svg)
+    #    covers hicolor, Adwaita, AdwaitaLegacy + flatpak exports
+    found=$(find /usr/share/icons "$HOME/.local/share/icons" \
+        /var/lib/flatpak/exports/share/icons "$HOME/.local/share/flatpak/exports/share/icons" \
+        -type f \( -name "${name}.svg" -o -name "${name}.png" \) 2>/dev/null \
+        | sort -r | head -1)
+    if [ -n "$found" ]; then echo "$found"; return; fi
+    # 3) flatpak per-app exports (e.g. com.obsproject.Studio lives only here)
+    found=$(find /var/lib/flatpak/app "$HOME/.local/share/flatpak/app" \
+        -path "*export/share/icons*" -type f \( -name "${name}.svg" -o -name "${name}.png" \) 2>/dev/null \
+        | sort -r | head -1)
+    if [ -n "$found" ]; then echo "$found"; return; fi
+    # 4) any hicolor scalable/apps hit for xpm
+    found=$(find /usr/share/icons/hicolor -type f -name "${name}.xpm" -path "*/apps/*" 2>/dev/null | head -1)
+    if [ -n "$found" ]; then echo "$found"; return; fi
+    # 5) fallback: themed name, QML resolves via Quickshell.iconPath()
+    echo "$name"
 }
 
+# Use find (handles large dirs). NOTE: many entries are symlinks
+# (libreoffice -> /usr/lib/libreoffice/..., flatpak -> ../../../app/...),
+# so match both regular files and symlinks.
 for dir in $APP_DIRS; do
-    for f in "$dir"/*.desktop; do
-        [ -f "$f" ] || continue
-        basename="${f##*/}"
-        echo "$basename" | grep -qiE "$HIDDEN" && continue
-        grep -iE "$HIDDEN" "$f" | grep -q . && continue
-        awk -F= '
-            /^\[Desktop Entry\]/ { inblock = 1; next }
-            /^\[/                { inblock = 0 }
-            inblock && /^Type=/       { type = $2 }
-            inblock && /^NoDisplay=/  { nod  = $2 }
-            inblock && /^Name=/       { name = $2 }
-            inblock && /^Exec=/       { ex   = $2 }
-            inblock && /^Icon=/       { ico  = $2 }
-            END {
-                if (type == "Application" && nod != "true" && ex != "")
-                    printf "%s\t%s\t%s\n", name, ex, ico
-            }' "$f"
-    done
-done | while IFS='	' read -r name exec icon; do
+    [ -d "$dir" ] || continue
+    find "$dir" -maxdepth 1 -name "*.desktop" \( -type f -o -type l \) 2>/dev/null
+done | while IFS= read -r f; do
+    [ -e "$f" ] || continue
+    echo "${f##*/}" | grep -qiE "$HIDDEN" && continue
+    awk '
+        /^\[Desktop Entry\]/ { inblock = 1; next }
+        /^\[/                { inblock = 0; next }
+        inblock && /^Type=Application$/      { type_ok = 1 }
+        inblock && /^NoDisplay=true$/        { nod = 1 }
+        inblock && /^Hidden=true$/           { hid = 1 }
+        inblock && /^Name=/ {
+            s = $0; sub(/^[^=]*=/, "", s); if (name == "") name = s
+        }
+        inblock && /^Exec=/ {
+            s = $0; sub(/^[^=]*=/, "", s); if (ex == "") ex = s
+        }
+        inblock && /^Icon=/ {
+            s = $0; sub(/^[^=]*=/, "", s); if (ico == "") ico = s
+        }
+        END {
+            if (type_ok && !nod && !hid && ex != "" && name != "")
+                printf "%s\t%s\t%s\n", name, ex, ico
+        }' "$f"
+done | grep -viE "$HIDDEN" | sort -t "	" -k1,1 -f | awk -F'\t' '!seen[tolower($1)]++' | while IFS='	' read -r name exec icon; do
     printf "%s\t%s\t%s\n" "$name" "$exec" "$(resolve_icon "$icon")"
 done

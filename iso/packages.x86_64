@@ -2,6 +2,9 @@
 base
 linux
 linux-firmware
+systemd
+systemd-sysvcompat
+efibootmgr
 intel-ucode
 amd-ucode
 syslinux
@@ -45,7 +48,6 @@ hyprlock
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-wlr
 xdg-utils
-wofi
 quickshell
 qt6-svg
 qt6-imageformats
@@ -59,6 +61,8 @@ jq
 imagemagick
 libnotify
 playerctl
+fuzzel
+fastfetch
 polkit-gnome
 otf-font-awesome
 ttf-jetbrains-mono-nerd
@@ -88,9 +92,11 @@ shared-mime-info
 # Browser
 firefox
 
-# SDDM
+# SDDM (gruvbox-minimal-sddm needs qt6-5compat for Qt5Compat.GraphicalEffects/FastBlur)
 sddm
 sddm-kcm
+qt6-declarative
+qt6-5compat
 
 # Appearance
 qt5ct

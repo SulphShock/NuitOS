@@ -36,6 +36,8 @@ Singleton {
         let resolved = name
         if (resolved === "network-wired") resolved = "network-wired-symbolic"
         if (resolved === "network-wireless-disconnected-symbolic") resolved = "network-wireless-disabled-symbolic"
+        if (resolved === "network-wireless-symbolic") resolved = "network-wireless-disabled-symbolic"
+        if (resolved === "battery-level-100-charging-symbolic") resolved = "battery-level-100-charged-symbolic"
         if (resolved === "applications-system-symbolic") resolved = "preferences-system-symbolic"
         let folder = "status"
         if (resolved === "preferences-system-symbolic") folder = "categories"

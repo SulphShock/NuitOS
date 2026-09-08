@@ -54,7 +54,9 @@ PanelWindow {
         + "%" + (SysState.charging ? "+" : "")
     readonly property string battIcon: {
         const p = Math.max(0, Math.min(100, SysState.batteryPct))
-        return "battery-level-" + Math.round(p / 10) * 10
+        const lvl = Math.round(p / 10) * 10
+        if (lvl >= 100 && SysState.charging) return "battery-level-100-charged-symbolic"
+        return "battery-level-" + lvl
             + (SysState.charging ? "-charging" : "") + "-symbolic"
     }
     property int workspaceRevision: 0
@@ -288,7 +290,7 @@ PanelWindow {
                 source: Theme.icon(bar.volIcon)
                 tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleMute()
-                onWheelAdjusted: SysState.setVolume(SysState.volume + direction * 0.05)
+                onWheelAdjusted: direction => SysState.setVolume(SysState.volume + direction * 0.05)
                 Connections {
                     target: SysState
                     function onMutedChanged() { volBtn.pulse() }
@@ -313,7 +315,7 @@ PanelWindow {
                 source: Theme.icon("display-brightness-symbolic")
                 tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
                 onClicked: SysState.toggleQs()
-                onWheelAdjusted: SysState.setBrightness(SysState.brightness + direction * 0.05)
+                onWheelAdjusted: direction => SysState.setBrightness(SysState.brightness + direction * 0.05)
                 Connections {
                     target: SysState
                     function onBrightnessChanged() { briBtn.pulse() }

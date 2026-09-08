@@ -32,7 +32,7 @@ fail()    { gum log --time=time --level error "$@"; exit 1; }
 prompt()  { gum style --foreground "$DIM" " > $1"; }
 need()    { command -v "$1" >/dev/null 2>&1 || fail "required tool not found: $1"; }
 
-for tool in gum lsblk sgdisk jq pacstrap arch-chroot genfstab bootctl; do
+for tool in gum lsblk sgdisk jq pacstrap arch-chroot genfstab bootctl cryptsetup partprobe udevadm; do
   need "$tool"
 done
 
@@ -67,6 +67,23 @@ DISK_DEV="/dev/$DISK"
 MNTD="$(jq -r '.blockdevices[] | select(.name=="'"$DISK"'") | .mountpoints[]? // empty' <<<"$DISKS_JSON")"
 [[ -n "$MNTD" ]] && fail "disk $DISK is mounted at $MNTD — unmount first"
 
+# Guard: refuse to wipe the very device this live session is running from.
+# Resolve the root device to its parent disk (sda1 -> sda, nvme0n1p2 -> nvme0n1).
+LIVE_DISK=""
+LIVE_SRC="$(findmnt -no SOURCE / 2>/dev/null | head -1)"
+LIVE_SRC="${LIVE_SRC%%\[*}" # strip btrfs subvol suffix: /dev/nvme0n1p2[/@] -> /dev/nvme0n1p2
+if [ -n "$LIVE_SRC" ] && [[ "$LIVE_SRC" == /dev/* ]]; then
+  LIVE_DISK="$(lsblk -no PKNAME "$LIVE_SRC" 2>/dev/null | head -1)"
+  [ -z "$LIVE_DISK" ] && LIVE_DISK="${LIVE_SRC#/dev/}"
+fi
+if [ -n "$LIVE_DISK" ] && [ "$DISK" = "$LIVE_DISK" ]; then
+  warn "$DISK_DEV appears to be the device this live session is running from"
+  if ! gum confirm --affirmative "Erase anyway" --negative "Abort" \
+    "Installing to $DISK_DEV destroys the live media you are working from. Continue?"; then
+    warn "aborted"; exit 1
+  fi
+fi
+
 PS="$(part_suffix "$DISK")"
 P1="${DISK_DEV}${PS}1"
 P2=""
@@ -93,8 +110,8 @@ prompt "Disk encryption (LUKS2 on root)"
 LUKS_OPT="$(printf 'none\nfull-disk encryption (LUKS2)\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Encryption")"
 LUKS_PASS=""
 [[ "$LUKS_OPT" == *"LUKS2"* ]] && {
-  LUKS_PASS="$(gum input --password --placeholder "encryption passphrase (min 8 chars)")"
-  [[ ${#LUKS_PASS} -lt 8 ]] && fail "passphrase too short"
+  LUKS_PASS="$(gum input --password --placeholder "encryption passphrase (min 12 chars)")"
+  [[ ${#LUKS_PASS} -lt 12 ]] && fail "passphrase too short (min 12 chars)"
   RECHECK="$(gum input --password --placeholder "repeat passphrase")"
   [[ "$LUKS_PASS" != "$RECHECK" ]] && fail "passphrases do not match"
 }
@@ -127,13 +144,25 @@ prompt "Hostname"
 HOSTNAME="$(gum input --placeholder "nuitos")"
 [[ "$HOSTNAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]] || HOSTNAME="nuitos"
 
+# --- Autologin (gated, default OFF) ---------------------------------------
+# The live ISO autologins the live user via its own /etc/sddm.conf — that must
+# NOT leak into the installed system. Ask explicitly; default is no autologin.
+prompt "Autologin on boot (skip the login screen)?"
+if gum confirm --bg "#1a1b26" --affirmative "Yes, autologin" --negative "No (ask password)" \
+  "Autologin ${USERNAME} on boot?"; then
+  AUTOLOGIN_OPT="yes"
+else
+  AUTOLOGIN_OPT="no"
+fi
+
 # --- Summary -------------------------------------------------------------
 heading "Summary"
 gum style --padding "0 2" --foreground "#e0def4" \
 "${GOOD}Disk:${DIM}     $DISK_DEV
 ${GOOD}FS:${DIM}       ${FS}  swap=${SWAP_G:-off}  ${LUKS_OPT}
 ${GOOD}Locale:${DIM}   ${LANG_VAL}  ${KEYMAP}  ${TZ}
-${GOOD}User:${DIM}     ${USERNAME} (${FULL_NAME:-$USERNAME})  host=${HOSTNAME}"
+${GOOD}User:${DIM}     ${USERNAME} (${FULL_NAME:-$USERNAME})  host=${HOSTNAME}
+${GOOD}Login:${DIM}    autologin=${AUTOLOGIN_OPT}  theme=gruvbox-minimal-sddm"
 
 gum confirm --bg "#1a1b26" --affirmative "GO" --negative "Abort" \
   "Erase $DISK_DEV and install NuitOS?" || { warn "aborted"; exit 1; }
@@ -144,9 +173,10 @@ if [[ $DRY_RUN -eq 1 ]]; then
  - sgdisk GPT on $DISK_DEV: ${P1} ESP 512MiB (ef00)
    ${SWAP_G:+${DISK_DEV}${PS}2 swap ${SWAP_G}GiB (8200)}  root ${FS} ${LUKS_OPT:+LUKS2}
  - mount /mnt -> root, ${P1} -> /mnt/boot
- - pacstrap -K /mnt  \$(cat /usr/local/share/nuit/pkgs-disk.txt)
- - chroot: skel + usr/local/bin + plymouth + sddm + locale/time/user/hostname
-           + initramfs + systemd-boot (UEFI)"
+  - pacstrap -K /mnt  \$(cat /usr/local/share/nuit/pkgs-disk.txt)
+  - payload (live -> /mnt): skel + nuit-* scripts + backgrounds + plymouth/SDDM themes
+  - chroot: plymouth conf + sddm (theme=gruvbox-minimal-sddm, autologin=${AUTOLOGIN_OPT})
+            + locale/time/user/hostname + initramfs + systemd-boot (UEFI)"
   exit 0
 fi
 
@@ -208,22 +238,46 @@ gum spin --spinner dot --title "pacstrap ${#PKGS[@]} packages…" -- pacstrap -K
 info "generating fstab"
 genfstab -U /mnt >> /mnt/etc/fstab
 
+# --- Payload: live image -> target (MUST run outside chroot) --------------
+# NOTE: everything below copies FROM the live ISO root (/) TO the target
+# (/mnt). A previous version did this inside arch-chroot where /etc/skel is
+# the *target's* skel, making it a no-op self-copy — the installed system got
+# none of the NuitOS dotfiles, scripts or artwork.
+info "copying NuitOS payload (skel, scripts, artwork, themes)"
+cp -a /etc/skel/. /mnt/etc/skel/
+mkdir -p /mnt/usr/local/bin
+cp -a /usr/local/bin/nuit-* /mnt/usr/local/bin/ 2>/dev/null || true
+mkdir -p /mnt/usr/share/backgrounds
+cp -a /usr/share/backgrounds/. /mnt/usr/share/backgrounds/ 2>/dev/null || true
+mkdir -p /mnt/usr/share/plymouth/themes
+cp -a /usr/share/plymouth/themes/NuitOS/. /mnt/usr/share/plymouth/themes/NuitOS/ 2>/dev/null || true
+mkdir -p /mnt/usr/share/sddm/themes
+# Fatal (no '|| true'): the installer writes Current=gruvbox-minimal-sddm, so a
+# missing theme would leave the installed system with no login screen.
+cp -a /usr/share/sddm/themes/gruvbox-minimal-sddm/. /mnt/usr/share/sddm/themes/gruvbox-minimal-sddm/ \
+  || fail "missing SDDM theme on live image: gruvbox-minimal-sddm"
+mkdir -p /mnt/usr/local/share/nuit
+cp -a /usr/local/share/nuit/. /mnt/usr/local/share/nuit/ 2>/dev/null || true
+
 # --- Stage 2 (chroot) ----------------------------------------------------
 info "configuring system (chroot stage 2)"
 LUKS_HOOK=""; [[ "$LUKS_OPT" == *"LUKS2"* ]] && LUKS_HOOK="encrypt"
 ROOT_LINE="root=UUID=${ROOT_UUID} rw quiet"
 [[ "$LUKS_OPT" == *"LUKS2"* ]] && ROOT_LINE="cryptdevice=UUID=${ROOT_UUID}:cryptroot root=/dev/mapper/cryptroot rw quiet"
+# SDDM autologin block: only written when the user opted in (default off).
+AUTOLOGIN_CONF=""; [[ "$AUTOLOGIN_OPT" == "yes" ]] && AUTOLOGIN_CONF="[Autologin]
+User=${USERNAME}
+Session=hyprland
+"
 
 cat > /mnt/root/nuit-stage2.sh <<STAGE2
 #!/bin/bash
 set -euo pipefail
 
-# Skel, helper scripts and artwork from the live image
-cp -a /etc/skel/. /etc/skel/
-cp -a /usr/local/bin/nuit-* /usr/local/bin/ 2>/dev/null || true
-cp -a /usr/share/backgrounds/. /usr/share/backgrounds/ 2>/dev/null || true
-mkdir -p /usr/share/plymouth/themes
-cp -a /usr/share/plymouth/themes/NuitOS/. /usr/share/plymouth/themes/NuitOS/ 2>/dev/null || true
+# (Payload — skel, nuit-* scripts, backgrounds, plymouth + SDDM themes — was
+# already copied from the live image to /mnt BEFORE chroot. Do not copy here:
+# inside arch-chroot /etc/skel is the target's own skel, so a copy would be a
+# no-op self-copy.)
 
 # Plymouth
 cat > /etc/plymouth/plymouthd.conf <<'PLY'
@@ -232,13 +286,12 @@ Theme=NuitOS
 ShowDelay=0
 PLY
 
-# SDDM: autologin into the Hyprland session
-cat > /etc/sddm.conf <<'SDDM'
-[Autologin]
-User=${USERNAME}
-Session=hyprland
-[Theme]
-Current=breeze
+# SDDM: gruvbox-minimal-sddm theme; autologin only when opted in (default off).
+# AUTOLOGIN_CONF is expanded on the host when writing stage2 (empty = no
+# autologin, password required at the login screen).
+cat > /etc/sddm.conf <<SDDM
+${AUTOLOGIN_CONF}[Theme]
+Current=gruvbox-minimal-sddm
 SDDM
 
 # Services
@@ -252,9 +305,11 @@ echo "${HOSTNAME}" > /etc/hostname
 grep -q "127.0.1.1" /etc/hosts || echo "127.0.1.1 ${HOSTNAME}" >> /etc/hosts
 sed -i "s/^127.0.1.1 .*/127.0.1.1 ${HOSTNAME}/" /etc/hosts
 
-# Locale
-grep -q "^${LOCALE}" /etc/locale.gen || echo "${LOCALE}" >> /etc/locale.gen
-echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+# Locale (idempotent: keep en_US as a fallback alongside the chosen one)
+# \${_loc} is escaped so it expands inside stage2, not while writing it here.
+for _loc in "${LOCALE}" "en_US.UTF-8 UTF-8"; do
+  grep -qFx "\${_loc}" /etc/locale.gen || echo "\${_loc}" >> /etc/locale.gen
+done
 locale-gen >/dev/null 2>&1
 echo "LANG=${LANG_VAL}" > /etc/locale.conf
 
@@ -274,12 +329,15 @@ passwd -l root 2>/dev/null || true
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 grep -q '^%wheel ALL=(ALL:ALL) ALL' /etc/sudoers || echo '%wheel ALL=(ALL:ALL) ALL' >> /etc/sudoers
 
-# Initramfs with plymouth (and LUKS encrypt hook when needed)
+# Initramfs with plymouth (and LUKS encrypt hook when needed).
+# plymouth must come BEFORE encrypt: the encrypt hook asks for the
+# passphrase through plymouth, so the prompt renders over the boot splash
+# instead of a raw TTY.
 cat > /etc/mkinitcpio.conf <<'MK'
 MODULES=()
 BINARIES=()
 FILES=()
-HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block ${LUKS_HOOK} filesystems plymouth fsck)
+HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block plymouth ${LUKS_HOOK} filesystems fsck)
 COMPRESSION=(zstd)
 MK
 mkinitcpio -P >/dev/null 2>&1 || true
@@ -293,12 +351,18 @@ timeout   3
 console-mode max
 editor    no
 LD
-cat > /boot/loader/entries/nuitos.conf <<'ENT'
+# Microcode: reference only the ucode image(s) actually present on the target.
+# (Both intel-ucode and amd-ucode are installed by pacstrap; on real hardware
+# exactly one of the two images exists. Listing a missing initrd breaks boot.)
+UCODE_LINES=""
+[[ -f /boot/intel-ucode.img ]] && UCODE_LINES+="initrd  /intel-ucode.img
+"
+[[ -f /boot/amd-ucode.img ]] && UCODE_LINES+="initrd  /amd-ucode.img
+"
+cat > /boot/loader/entries/nuitos.conf <<ENT
 title   Nuit OS
 linux   /vmlinuz-linux
-initrd  /intel-ucode.img
-initrd  /amd-ucode.img
-initrd  /initramfs-linux.img
+\${UCODE_LINES}initrd  /initramfs-linux.img
 options ${ROOT_LINE}
 ENT
 STAGE2
@@ -318,7 +382,7 @@ gum style --padding "0 2" --foreground "$GOOD" \
 "${GOOD}Nuit OS installed.${DIM}
  - user ${USERNAME} (password sudo, root locked)
  - host ${HOSTNAME} · ${LANG_VAL} · ${KEYMAP} · ${TZ}
- - ${FS} root ${LUKS_OPT:+· LUKS2 }· systemd-boot · SDDM autologin
+  - ${FS} root ${LUKS_OPT:+· LUKS2 }· systemd-boot · SDDM (autologin ${AUTOLOGIN_OPT})
  - remove the installation media, then reboot"
 gum confirm --bg "#1a1b26" --affirmative "Reboot now" --negative "Stay in live session" \
   && systemctl reboot || info "done — reboot anytime with: systemctl reboot"

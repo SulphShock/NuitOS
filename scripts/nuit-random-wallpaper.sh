@@ -1,77 +1,48 @@
 #!/bin/bash
+# nuit-random-wallpaper — set a random NuitOS background (persisted).
+#
+# Picks from the user's imported themes (~/.config/nuit/backgrounds) with the
+# shipped defaults (/usr/share/backgrounds) as fallback, then applies through
+# the canonical setter `nuit-theme-bg-set`, which:
+#   - persists the choice in ~/.config/hypr/hyprpaper.conf (hyprpaper 0.8 syntax)
+#   - applies it live via `hyprctl hyprpaper wallpaper 'mon,path,fit'`
+#   - tracks the current image at ~/.config/nuit/current/background
+# This keeps every wallpaper entry point (next/random/set) on one code path.
 
-# Wallpaper randomizer for NuitOS
-# Sets a random wallpaper from the wallpapers directory
+set -euo pipefail
 
-WALLPAPER_DIR="$HOME/.config/hypr/wallpapers"
+SEARCH_DIRS=(
+  "$HOME/.config/nuit/backgrounds"
+  "/usr/share/backgrounds"
+)
 
-# Create directory if it doesn't exist
-mkdir -p "$WALLPAPER_DIR"
-
-# Find supported image files
-SUPPORTED_EXTENSIONS=("jpg" "jpeg" "png" "webp" "jxl")
-WALLPAPERS=()
-
-for ext in "${SUPPORTED_EXTENSIONS[@]}"; do
-    while IFS= read -r -d '' file; do
-        WALLPAPERS+=("$file")
-    done < <(find "$WALLPAPER_DIR" -type f -name "*.$ext" -print0 2>/dev/null)
+CANDIDATES=()
+for dir in "${SEARCH_DIRS[@]}"; do
+  [ -d "$dir" ] || continue
+  while IFS= read -r -d '' f; do
+    CANDIDATES+=("$f")
+  done < <(find "$dir" -maxdepth 2 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.jxl' \) -print0 2>/dev/null)
 done
 
-# If no wallpapers found, copy default one
-if [ ${#WALLPAPERS[@]} -eq 0 ]; then
-    echo "No wallpapers found in $WALLPAPER_DIR, copying default..."
-    DEFAULT_WALLPAPER="/usr/share/backgrounds"
-    if [ -d "$DEFAULT_WALLPAPER" ]; then
-        cp "$DEFAULT_WALLPAPER"/*.jpg "$WALLPAPER_DIR/" 2>/dev/null || true
-        cp "$DEFAULT_WALLPAPER"/*.png "$WALLPAPER_DIR/" 2>/dev/null || true
-    fi
-
-    # Retry finding wallpapers after copying defaults
-    for ext in "${SUPPORTED_EXTENSIONS[@]}"; do
-        while IFS= read -r -d '' file; do
-            WALLPAPERS+=("$file")
-        done < <(find "$WALLPAPER_DIR" -type f -name "*.$ext" -print0 2>/dev/null)
-    done
+if [ "${#CANDIDATES[@]}" -eq 0 ]; then
+  echo "nuit-random-wallpaper: no wallpapers found in ${SEARCH_DIRS[*]}" >&2
+  exit 1
 fi
 
-# If still no wallpapers, create a simple fallback
-if [ ${#WALLPAPERS[@]} -eq 0 ]; then
-    echo "Creating fallback wallpaper..."
-    convert -size 1920x1080 gradient:blue-black "$WALLPAPER_DIR/fallback.jpg" 2>/dev/null || true
-    WALLPAPERS=("$WALLPAPER_DIR/fallback.jpg")
+# Avoid instantly re-showing the current image when there is more than one.
+CURRENT=""
+if [ -L "$HOME/.config/nuit/current/background" ]; then
+  CURRENT="$(readlink -f "$HOME/.config/nuit/current/background" 2>/dev/null || true)"
 fi
 
-# Select a random wallpaper (re-picking if it's the one already showing)
-if [ ${#WALLPAPERS[@]} -gt 0 ]; then
-    RANDOM_WALLPAPER="${WALLPAPERS[$((RANDOM % ${#WALLPAPERS[@]}))]}"
-    if [ ${#WALLPAPERS[@]} -gt 1 ]; then
-        CURRENT=""
-        [ -L "$HOME/.config/nuit/current/background" ] && \
-            CURRENT="$(readlink -f "$HOME/.config/nuit/current/background" 2>/dev/null || true)"
-        if [ -n "$CURRENT" ] && [ "$RANDOM_WALLPAPER" = "$CURRENT" ]; then
-            RANDOM_WALLPAPER="${WALLPAPERS[$(((RANDOM + 1) % ${#WALLPAPERS[@]}))]}"
-        fi
-    fi
-    echo "Setting wallpaper: $RANDOM_WALLPAPER"
-
-    # Set wallpaper. hyprpaper 0.8 removed the `preload` IPC and the
-    # `hyprpaper -i` setter: a bare invocation on a running daemon fails
-    # silently, so talk to the live session via hyprctl IPC instead.
-    # `wallpaper "MONITOR,PATH"` auto-loads the file; empty monitor targets all.
-    if pgrep -x hyprpaper &> /dev/null && command -v hyprctl &> /dev/null; then
-        if ! hyprctl hyprpaper wallpaper ",$RANDOM_WALLPAPER" >/dev/null 2>&1; then
-            MONITORS="$(hyprctl monitors 2>/dev/null | awk '/^Monitor / {print $2}')"
-            for m in $MONITORS; do
-                hyprctl hyprpaper wallpaper "$m,$RANDOM_WALLPAPER" >/dev/null 2>&1 || true
-            done
-        fi
-        notify-send -a Nuit "Wallpaper" "$(basename "$RANDOM_WALLPAPER")" 2>/dev/null || true
-    elif command -v hyprpaper &> /dev/null; then
-        hyprpaper -i "$RANDOM_WALLPAPER"
-    else
-        echo "hyprpaper not found, cannot set wallpaper"
-    fi
-else
-    echo "No wallpapers found to set"
+PICK="${CANDIDATES[$((RANDOM % ${#CANDIDATES[@]}))]}"
+if [ -n "$CURRENT" ] && [ "$PICK" = "$CURRENT" ] && [ "${#CANDIDATES[@]}" -gt 1 ]; then
+  PICK="${CANDIDATES[$(((RANDOM + 1) % ${#CANDIDATES[@]}))]}"
 fi
+
+if ! command -v nuit-theme-bg-set >/dev/null 2>&1; then
+  echo "nuit-random-wallpaper: nuit-theme-bg-set not found" >&2
+  exit 1
+fi
+
+exec nuit-theme-bg-set "$PICK"

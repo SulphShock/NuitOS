@@ -261,7 +261,11 @@ Singleton {
     }
     // NOTE: never write sysfs directly (FileView → EACCES as non-root).
     // brightnessctl goes through logind D-Bus SetBrightness, so it works unprivileged.
-    Process { id: blSet }
+    Process {
+        id: blSet
+        stderr: StdioCollector { onStreamFinished: if (text.trim() !== "") console.warn("brightnessctl:", text.trim()) }
+        onExited: code => { if (code !== 0) console.warn("brightnessctl exited with code", code) }
+    }
     function setBrightness(v) { brightness = Math.min(1, Math.max(0.03, v)); blCommit.restart() }
     Timer {
         id: blCommit; interval: 40
@@ -317,7 +321,7 @@ Singleton {
     // persisted at ~/.local/share/nuit/reminders.json as [{id, text, when}]
     property var reminders: []
     property int remSeq: 0
-    readonly property string remFile: "/home/" + root.username + "/.local/share/nuit/reminders.json"
+    readonly property string remFile: (Quickshell.env("HOME") || ("/home/" + root.username)) + "/.local/share/nuit/reminders.json"
 
     // "15m", "2h", "1h30m" from now, or "HH:MM" today (tomorrow if passed)
     function parseReminderWhen(s) {

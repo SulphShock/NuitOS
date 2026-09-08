@@ -305,7 +305,7 @@ Rectangle {
                 fillColor: Theme.blue
                 active: !SysState.muted
                 onClicked: SysState.toggleMute()
-                onWheelAdjusted: SysState.setVolume(SysState.volume + direction * 0.05)
+                onWheelAdjusted: direction => SysState.setVolume(SysState.volume + direction * 0.05)
             }
             QSToggle {
                 Layout.fillWidth: true
@@ -317,7 +317,7 @@ Rectangle {
                 fillColor: Theme.blue
                 active: true
                 onClicked: SysState.setBrightness(SysState.brightness > 0.5 ? 0.3 : 0.8)
-                onWheelAdjusted: SysState.setBrightness(SysState.brightness + direction * 0.05)
+                onWheelAdjusted: direction => SysState.setBrightness(SysState.brightness + direction * 0.05)
             }
             QSToggle {
                 Layout.fillWidth: true
@@ -335,7 +335,7 @@ Rectangle {
                 subtitle: SysState.powerProfile === "performance" ? "Performance" : SysState.powerProfile === "power-saver" ? "Eco saver" : "Balanced"
                 active: true
                 onClicked: panel.nextPowerProfile(1)
-                onWheelAdjusted: panel.nextPowerProfile(direction)
+                onWheelAdjusted: direction => panel.nextPowerProfile(direction)
             }
             QSToggle {
                 Layout.fillWidth: true

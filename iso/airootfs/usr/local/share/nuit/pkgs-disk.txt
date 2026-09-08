@@ -35,7 +35,6 @@ hyprlock
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-wlr
 xdg-utils
-wofi
 quickshell
 qt6-svg
 qt6-imageformats
@@ -48,6 +47,8 @@ jq
 imagemagick
 libnotify
 playerctl
+fuzzel
+fastfetch
 polkit-gnome
 otf-font-awesome
 ttf-jetbrains-mono-nerd
@@ -70,6 +71,8 @@ shared-mime-info
 firefox
 sddm
 sddm-kcm
+qt6-declarative
+qt6-5compat
 qt5ct
 qt6ct
 kvantum

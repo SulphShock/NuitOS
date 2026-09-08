@@ -8,3 +8,6 @@ Thumbs.db
 /out/
 /work/
 *.iso
+
+# local-only secrets (only the .example template is committed)
+**/ai_agents_secrets.lua

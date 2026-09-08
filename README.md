@@ -1,9 +1,9 @@
 
 # 🌙 Nuit OS
 
-> Arch Linux + Hyprland. Lean. Minimal. Works.
+> Arch Linux + Hyprland. Gruvbox-dark. Ready to work.
 
-A distro stripped to the essentials: tiling window manager, system topbar, app launcher, and a small curated set of daily-use apps. Build it, boot it, work.
+A bootable, day-one desktop: tiling window manager, system topbar, app launcher, gruvbox-dark login theme, and a curated set of daily-use apps. Build it, boot it, work.
 
 ---
 
@@ -11,8 +11,9 @@ A distro stripped to the essentials: tiling window manager, system topbar, app l
 
 - **Hyprland** — Tiling window manager configured for daily use
 - **QuickShell topbar** — D-Bus integrated status bar with quick settings, calendar, notifications
-- **App launcher** — `wofi` for fuzzy app search, plus QuickShell's in-shell Activities grid
-- **Minimal packages** — Only what works. Choose your own terminal, shell, editor
+- **App launcher** — in-shell Activities grid (Super+Space)
+- **Gruvbox-dark login** — `gruvbox-minimal-sddm` theme matching the desktop palette
+- **Curated packages** — Daily-use apps preinstalled (terminal, browser, editor, media); extend via `yay`
 - **CLI utilities** — Quick wrappers for common tasks
 - **Reproducible builds** — Pure archiso profile in `iso/`
 
@@ -22,9 +23,8 @@ A distro stripped to the essentials: tiling window manager, system topbar, app l
 
 ### Prerequisites
 
-- Arch Linux (or any rolling release with `archiso`)
-- `base-devel` installed
-- ~5 GB free disk space
+- Arch Linux with `archiso` and `base-devel` installed
+- ~15 GB free disk space (build tree + output ISO)
 
 ### Build the ISO
 
@@ -38,10 +38,22 @@ Output: `NuitOS-YYYY.MM.DD-x86_64.iso` (~3 GB) in `./out/`
 
 ### Run
 
-1. Flash the ISO (UEFI or BIOS)
+1. Flash the ISO to a USB stick (UEFI only — the installer uses systemd-boot)
 2. Boot the live session into Hyprland
 
 Done. You have a working desktop.
+
+### Install to disk
+
+> ⚠️ **The installer permanently erases the target disk.** There is no undo — back up first.
+
+From the live session, run:
+
+```bash
+nuit-installer
+```
+
+It asks for disk, filesystem (ext4/btrfs), swap, LUKS2 encryption, locale/keymap/timezone, user, hostname, and whether to enable **autologin** (default: off — you log in with your password at the gruvbox SDDM screen). Use `nuit-installer --dry-run` to preview the plan without touching the disk.
 
 ---
 
@@ -54,16 +66,14 @@ NuitOS/
 │   ├── hyprland/         # Window manager
 │   ├── ghostty/          # Terminal
 │   └── ...
-├── pkgs/
-│   ├── core.txt          # Package list
-│   └── ...
 └── iso/                  # archiso profile (pure ISO)
     ├── profiledef.sh     # ISO definition (required by archiso)
     ├── packages.x86_64   # Packages bundled into ISO
     ├── pacman.conf       # Pacman config for build
-    ├── grub/             # Bootloader config
     └── airootfs/         # Files bundled into ISO
-        └── etc/          # System configs + skel
+        ├── etc/skel/     # Default user dotfiles (hypr, quickshell, nvim, …)
+        ├── usr/local/bin/# nuit-installer + nuit-* helpers
+        └── usr/share/    # backgrounds, plymouth + SDDM themes
 ```
 
 ---
@@ -130,7 +140,7 @@ sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 - systemd boot loader
 
 **Graphics & Audio:**
-- Intel/AMD/NVIDIA drivers (auto-selected)
+- Intel/AMD microcode + `linux-firmware`
 - PipeWire (sound)
 - Wayland support libraries
 
@@ -157,7 +167,7 @@ Hyprland defaults:
 | Key | Action |
 |-----|--------|
 | <kbd>Super</kbd> + <kbd>Return</kbd> | Open terminal (ghostty) |
-| <kbd>Super</kbd> + <kbd>Space</kbd> | App launcher (wofi) |
+| <kbd>Super</kbd> + <kbd>Space</kbd> | App launcher (Activities grid) |
 | <kbd>Super</kbd> + <kbd>C</kbd> | Close window |
 | <kbd>Super</kbd> + <kbd>V</kbd> | Toggle floating |
 | <kbd>Super</kbd> + <kbd>P</kbd> | Pseudo-tile |
@@ -183,7 +193,7 @@ Full config: `configs/hyprland/hyprland.conf`
 After boot:
 
 ```bash
-$ neofetch
+$ fastfetch
 ```
 
 - **OS:** Nuit OS (Arch Linux)
@@ -198,7 +208,7 @@ $ neofetch
 
 Issues, feature requests, and PRs welcome.
 
-**Keep it lean.** Nuit OS is intentionally minimal. Big new features go in userland, not the ISO.
+**Keep it coherent.** Gruvbox-dark look, working defaults, no dead code. Big new features go in userland, not the ISO.
 
 **Keep it honest.** If something's broken, say so. If it's a workaround, document why.
 
@@ -215,11 +225,11 @@ MIT. See `LICENSE`.
 - [Arch Linux](https://archlinux.org)
 - [Hyprland Docs](https://hyprland.org)
 - [QuickShell](https://github.com/outfoxxed/quickshell)
-- [wofi](https://sr.ht/~scooter/wofi/)
+- [gruvbox-minimal-sddm](https://github.com/scientiac/gruvbox-minimal-sddm) (MIT login theme, vendored + tuned)
 
 ---
 
 <p align="center">
-  <strong>Nuit OS</strong> — Hyprland + Arch. Built lean. Built simple. <br>
+  <strong>Nuit OS</strong> — Hyprland + Arch. Gruvbox-dark. Built to work. <br>
   <a href="https://github.com/SulphShock/NuitOS">View on GitHub</a>
 </p>
