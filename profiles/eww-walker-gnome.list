@@ -1,0 +1,30 @@
+# Experimental default: Waybar + Walker + GNOME apps + mako.
+# EWW ships as opt-in (AUR): run `nuit-enable-eww` post-install to switch bar.
+# QuickShell is NOT installed in this profile.
+base-system
+compositor-hyprland
+bar-waybar
+bar-eww-configs
+launcher-walker
+lock-hyprlock
+idle-hypridle
+paper-hyprpaper
+paper-waypaper
+terminal-ghostty
+shell-bash
+editor-nvim
+browser-firefox
+browser-librewolf-note
+fileman-nautilus
+media-gnome
+text-gnome
+greeter-sddm-animated
+plymouth-nuitos
+installer-gum-hardened
+polkit-gnome
+fonts-jetbrains
+theme-gruvbox
+portal-hyprland-full
+notify-mako
+clipboard-clipman
+flatpak-flathub

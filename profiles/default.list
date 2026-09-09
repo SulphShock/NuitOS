@@ -1,0 +1,19 @@
+# Default profile: reproduces current NuitOS (QuickShell bar).
+# One module id per line, order = package concat order.
+compositor-hyprland
+bar-quickshell
+launcher-activities
+lock-none
+idle-hypridle
+paper-hyprpaper
+terminal-ghostty
+shell-bash
+editor-nvim
+browser-firefox
+fileman-thunar
+greeter-sddm
+plymouth-nuitos
+installer-gum
+polkit-gnome
+fonts-jetbrains
+theme-gruvbox

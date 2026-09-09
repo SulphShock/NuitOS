@@ -1,0 +1,8 @@
+gum
+gptfdisk
+parted
+dosfstools
+e2fsprogs
+btrfs-progs
+arch-install-scripts
+cryptsetup

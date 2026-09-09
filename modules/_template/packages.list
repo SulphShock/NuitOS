@@ -1,0 +1,6 @@
+# One official-repo package per line. Full-line comments only (no trailing
+# comments — they break pacstrap). AUR packages NEVER go here; vendor them
+# via iso/airootfs/root/customize_airootfs.sh (see yay precedent) instead.
+# Example:
+# waybar
+# mako
