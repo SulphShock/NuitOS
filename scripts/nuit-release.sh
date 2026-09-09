@@ -39,6 +39,45 @@ fi
 
 # ---------------------------------------------------------------- build ---
 if [ "$MODE" = "full" ]; then
+    # ---- wallpapers: configs/wallpapers/default is the single source of truth.
+    # The two ISO spots (live /usr/share/backgrounds + skel ~/.config/nuit/
+    # backgrounds) are mirrors — synced here so nobody triple-copies by hand.
+    # (They stay committed in-tree so a bare `mkarchiso ./iso` still works.)
+    note "syncing wallpapers (canonical: configs/wallpapers/default)"
+    WALL_SRC="$REPO/configs/wallpapers/default"
+    [ -d "$WALL_SRC" ] || die "missing canonical wallpapers: $WALL_SRC"
+    [ -n "$(ls -A "$WALL_SRC" 2>/dev/null)" ] || die "no wallpapers in $WALL_SRC"
+    for dest in "$REPO/iso/airootfs/usr/share/backgrounds" \
+                "$REPO/iso/airootfs/etc/skel/.config/nuit/backgrounds"; do
+        mkdir -p "$dest"
+        for f in "$dest"/*; do
+            [ -e "$f" ] || continue
+            [ -e "$WALL_SRC/$(basename "$f")" ] || { note "dropping stale wallpaper: $f"; rm -f "$f"; }
+        done
+        cp -f "$WALL_SRC"/* "$dest"/
+    done
+
+    # ---- drift guard: helper/config copies must match their canonical source.
+    # Edit the canonical file, never the copy — the build refuses on mismatch.
+    drift=0
+    check_same() {
+        cmp -s "$1" "$2" || { warn "drift: $1 != $2"; drift=1; }
+    }
+    check_same "$REPO/configs/bin/nuit-capture-menu"  "$REPO/iso/airootfs/usr/local/bin/nuit-capture-menu"
+    check_same "$REPO/configs/bin/nuit-screenrecord"  "$REPO/iso/airootfs/usr/local/bin/nuit-screenrecord"
+    check_same "$REPO/configs/bin/nuit-screenshot"    "$REPO/iso/airootfs/usr/local/bin/nuit-screenshot"
+    check_same "$REPO/scripts/nuit-random-wallpaper.sh" "$REPO/iso/airootfs/usr/local/bin/nuit-random-wallpaper"
+    for t in nuit-theme-bg-set nuit-theme-bg-next nuit-theme-bg-folder nuit-theme-bg-current; do
+        check_same "$REPO/scripts/$t" "$REPO/iso/airootfs/usr/local/bin/$t"
+    done
+    check_same "$REPO/configs/hyprland/hyprland.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprland.conf"
+    for d in quickshell ghostty nvim fastfetch Branding; do
+        diff -rq "$REPO/configs/$d" "$REPO/iso/airootfs/etc/skel/.config/$d" >/dev/null 2>&1 \
+            || { warn "drift: configs/$d != skel .config/$d"; drift=1; }
+    done
+    [ "$drift" -eq 0 ] || die "config drift detected — sync the canonical sources and re-run"
+    note "drift guard clean"
+
     note "removing stale build tree: $WORK"
     rm -rf "$WORK"
     note "removing stale output: $ISO_DIR"

@@ -220,6 +220,17 @@ if [[ "$LUKS_OPT" == *"LUKS2"* ]]; then
   printf '%s' "$LUKS_PASS" | cryptsetup open --type luks2 "$ROOT_PART" cryptroot -
   TARGET="/dev/mapper/cryptroot"
 fi
+info "creating filesystems (${FS})"
+mkfs.fat -F32 -n ESP "$P1" >/dev/null
+case "$FS" in
+  btrfs) mkfs.btrfs -f -L NUITROOT "$TARGET" >/dev/null ;;
+  *)     mkfs.ext4 -F -L NUITROOT "$TARGET" >/dev/null ;;
+esac
+
+# UUIDs only exist AFTER formatting: the LUKS container UUID identifies the
+# encrypted device (cryptdevice=), the filesystem UUID identifies plain root
+# (root=). Without LUKS $ROOT_PART == $TARGET, so one probe covers both.
+# (Probing before mkfs always failed on fresh partitions.)
 ROOT_UUID=""
 for _try in 1 2 3 4 5; do
   udevadm settle 2>/dev/null || true
@@ -228,13 +239,6 @@ for _try in 1 2 3 4 5; do
   sleep 1
 done
 [[ -n "$ROOT_UUID" ]] || fail "could not read UUID of $ROOT_PART after format"
-
-info "creating filesystems (${FS})"
-mkfs.fat -F32 -n ESP "$P1" >/dev/null
-case "$FS" in
-  btrfs) mkfs.btrfs -f -L NUITROOT "$TARGET" >/dev/null ;;
-  *)     mkfs.ext4 -F -L NUITROOT "$TARGET" >/dev/null ;;
-esac
 if [[ -n "$SWAP_PART" ]]; then
   mkswap -L swap "$SWAP_PART" >/dev/null
   swapon "$SWAP_PART" >/dev/null
@@ -248,7 +252,18 @@ mount "$P1" /mnt/boot
 info "installing packages (pacstrap)"
 mapfile -t PKGS < <(grep -vE '^\s*(#|$)' "$PKG_LIST")
 [[ ${#PKGS[@]} -gt 0 ]] || fail "empty package list"
-gum spin --spinner dot --title "pacstrap ${#PKGS[@]} packages…" -- pacstrap -K /mnt "${PKGS[@]}"
+# pacstrap runs under the spinner, so its output goes to a log. On failure the
+# tail is shown — a bare spinner exit code says nothing about which package broke.
+PACSTRAP_LOG="/tmp/nuit-pacstrap.log"
+: > "$PACSTRAP_LOG"
+if gum spin --spinner dot --title "pacstrap ${#PKGS[@]} packages…" -- \
+    bash -c 'exec pacstrap -K /mnt "$@" >"$0" 2>&1' "$PACSTRAP_LOG" "${PKGS[@]}"; then
+  info "packages installed (${#PKGS[@]})"
+else
+  warn "pacstrap failed — tail of $PACSTRAP_LOG:"
+  tail -n 25 "$PACSTRAP_LOG" || true
+  fail "pacstrap failed (full log: $PACSTRAP_LOG)"
+fi
 
 info "generating fstab"
 genfstab -U /mnt > /mnt/etc/fstab
@@ -275,9 +290,11 @@ mkdir -p /mnt/usr/local/share/nuit
 cp -a /usr/local/share/nuit/. /mnt/usr/local/share/nuit/ 2>/dev/null || true
 
 # --- Stage 2 (chroot) ----------------------------------------------------
-# Secrets and host-side values cross into stage2 via the environment (never
-# through heredoc expansion): the stage2 script is written with a QUOTED
-# heredoc so `$`, backticks or `!` in passwords cannot expand on the host.
+# Secrets and host-side values cross into stage2 via a root-only env file —
+# never through heredoc expansion and never on a command line (argv is visible
+# to every process on the live session). The stage2 script is written with a
+# QUOTED heredoc so `$`, backticks or `!` in passwords cannot expand on the
+# host, and values are %q-escaped when written to the env file.
 info "configuring system (chroot stage 2)"
 LUKS_HOOK=""; [[ "$LUKS_OPT" == *"LUKS2"* ]] && LUKS_HOOK="encrypt"
 ROOT_LINE="root=UUID=${ROOT_UUID} rw quiet"
@@ -291,6 +308,10 @@ Session=hyprland
 cat > /mnt/root/nuit-stage2.sh <<'STAGE2'
 #!/bin/bash
 set -euo pipefail
+
+# Values arrive via /root/nuit-stage2.env (0600, shredded after the run).
+# shellcheck disable=SC1091
+source /root/nuit-stage2.env
 
 NUIT_USER="${NUIT_USER:?missing NUIT_USER}"
 NUIT_PASS="${NUIT_PASS:?missing NUIT_PASS}"
@@ -394,20 +415,25 @@ ENT
 STAGE2
 
 chmod +x /mnt/root/nuit-stage2.sh
+# Stage2 inputs live in a 0600 env file on the target (shredded afterwards),
+# so passwords never appear in any process command line.
+{
+  printf 'NUIT_USER=%q\n' "$USERNAME"
+  printf 'NUIT_PASS=%q\n' "$USER_PASS"
+  printf 'NUIT_HOSTNAME=%q\n' "$HOSTNAME"
+  printf 'NUIT_LOCALE=%q\n' "$LOCALE"
+  printf 'NUIT_LANG=%q\n' "$LANG_VAL"
+  printf 'NUIT_KEYMAP=%q\n' "$KEYMAP"
+  printf 'NUIT_TZ=%q\n' "$TZ"
+  printf 'NUIT_LUKS_HOOK=%q\n' "$LUKS_HOOK"
+  printf 'NUIT_ROOT_LINE=%q\n' "$ROOT_LINE"
+  printf 'NUIT_AUTOLOGIN_CONF=%q\n' "$AUTOLOGIN_CONF"
+} > /mnt/root/nuit-stage2.env
+chmod 600 /mnt/root/nuit-stage2.env
 gum spin --spinner line --title "stage 2: users, theming, initramfs, bootloader…" -- \
-  arch-chroot /mnt env \
-    "NUIT_USER=${USERNAME}" \
-    "NUIT_PASS=${USER_PASS}" \
-    "NUIT_HOSTNAME=${HOSTNAME}" \
-    "NUIT_LOCALE=${LOCALE}" \
-    "NUIT_LANG=${LANG_VAL}" \
-    "NUIT_KEYMAP=${KEYMAP}" \
-    "NUIT_TZ=${TZ}" \
-    "NUIT_LUKS_HOOK=${LUKS_HOOK}" \
-    "NUIT_ROOT_LINE=${ROOT_LINE}" \
-    "NUIT_AUTOLOGIN_CONF=${AUTOLOGIN_CONF}" \
-    /bin/bash /root/nuit-stage2.sh
-rm -f /mnt/root/nuit-stage2.sh
+  arch-chroot /mnt /bin/bash /root/nuit-stage2.sh
+shred -u /mnt/root/nuit-stage2.env /mnt/root/nuit-stage2.sh 2>/dev/null \
+  || rm -f /mnt/root/nuit-stage2.env /mnt/root/nuit-stage2.sh
 
 sync
 umount -R /mnt || true
