@@ -8,7 +8,7 @@
 set -euo pipefail
 
 MODE="${1:-region}"
-DIR="${NUIT_SCREENRECORD_DIR:-${OMARCHY_SCREENRECORD_DIR:-$HOME/Videos}}"
+DIR="${NUIT_SCREENRECORD_DIR:-$HOME/Videos}"
 
 if pgrep -x gpu-screen-recorder >/dev/null 2>&1; then
   pkill -INT -x gpu-screen-recorder
@@ -24,7 +24,7 @@ if pgrep -x gpu-screen-recorder >/dev/null 2>&1; then
 fi
 
 command -v gpu-screen-recorder >/dev/null 2>&1 || {
-  notify-send -a Nuit "Screen recording needs gpu-screen-recorder" "Run the installer command from chat" 2>/dev/null || true
+  notify-send -a Nuit "Screen recording needs gpu-screen-recorder" "Install it, then retry" 2>/dev/null || true
   echo "Missing: gpu-screen-recorder (install it, then retry)" >&2
   exit 1
 }
@@ -55,5 +55,5 @@ case "$MODE" in
 esac
 
 echo "$FILE" > /tmp/nuit-recording-path
-notify-send -a Nuit "Recording…" "Alt+Print again (or menu) to stop" 2>/dev/null || true
+notify-send -a Nuit "Recording…" "Run again (or Super+Ctrl+C menu) to stop" 2>/dev/null || true
 echo "Recording to $FILE"

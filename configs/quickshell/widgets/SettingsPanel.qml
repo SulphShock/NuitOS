@@ -181,10 +181,10 @@ Rectangle {
                 Text {
                     width: parent.width
                     wrapMode: Text.Wrap
-                    text: "Explore more config → www.xxxxxxx.com"
+                    text: "Explore more config → github.com/SulphShock/NuitOS"
                     color: Theme.dimText
                     font { family: Theme.fontFamily; pixelSize: 10 }
-                    MouseArea { anchors.fill: parent; onClicked: SysState.launch("xdg-open https://www.xxxxxxx.com") }
+                    MouseArea { anchors.fill: parent; onClicked: SysState.launch("xdg-open https://github.com/SulphShock/NuitOS") }
                 }
             }
         }

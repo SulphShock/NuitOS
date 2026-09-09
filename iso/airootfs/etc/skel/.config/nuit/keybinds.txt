@@ -1,0 +1,31 @@
+NuitOS — keys you actually need
+================================
+
+Apps & windows
+  Super+Space               App grid (find the Nuit OS Installer here)
+  Super+Return              Terminal
+  Super+C                   Close window
+  Super+V                   Toggle floating
+  Super+P                   Pseudo-tile
+  Super+J                   Toggle split
+  Super+1..0                Switch workspace
+  Super+Shift+1..0          Move window to workspace
+  Super+mouse drag          Move / resize window
+  Super+mouse wheel         Switch workspace
+
+Panels & tools
+  Super+S                   Quick settings
+  Super+T                   Calendar
+  Super+A                   Activities (app grid)
+  Super+Shift+S             Settings panel
+  Super+Shift+Space         Random wallpaper
+  Super+Shift+F             Files   ·  Super+Shift+B   Browser
+  Super+Ctrl+C              Capture menu (screenshot / record / OCR / QR / color)
+  PrtSc / Shift+PrtSc       Screenshot region → clipboard / file
+  Super+F1                  This list
+
+Install & help
+  To install NuitOS: open the app grid, launch "Nuit OS Installer".
+  Stuck? https://github.com/SulphShock/NuitOS/issues
+
+Super = the Windows key.

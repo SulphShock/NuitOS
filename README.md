@@ -21,7 +21,23 @@ A bootable, day-one desktop: tiling window manager, system topbar, app launcher,
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### 🐣 New to Linux? Start here
+
+You don't need Linux installed to try NuitOS — but you do need a USB stick (4 GB or larger) and about 30 minutes.
+
+1. **Download the ISO** from the [Releases page](https://github.com/SulphShock/NuitOS/releases) (the file ends in `.iso`, ~3 GB).
+2. **Flash it to the USB stick** with [balenaEtcher](https://etcher.balena.io/) (Windows/macOS/Linux): open Etcher → *Flash from file* → pick the ISO → *Select target* → pick your USB stick → *Flash!*. This erases the stick.
+3. **Turn off Secure Boot** in your BIOS/UEFI settings (NuitOS, like stock Arch, won't boot with it on). Common keys to enter setup: <kbd>Del</kbd>, <kbd>F2</kbd>, <kbd>F10</kbd>, <kbd>Esc</kbd>.
+4. **Boot from the stick**: plug it in, restart, and press your boot-menu key (<kbd>F12</kbd>, <kbd>F8</kbd>, or <kbd>Esc</kbd> on most machines) → select the USB device.
+5. **What you'll see**: a login screen that logs you in by itself, then an empty desktop with a top bar and a wallpaper. Nothing is broken — it's a tiling desktop, and it's waiting for you:
+   - <kbd>Super</kbd> (= Windows key) + <kbd>Space</kbd> → app grid (find the **Nuit OS Installer** here)
+   - <kbd>Super</kbd> + <kbd>Return</kbd> → terminal
+   - <kbd>Super</kbd> + <kbd>F1</kbd> → full key list
+6. **To install it for real**, open the app grid and launch **Nuit OS Installer**. It asks plain questions, shows a summary, and never touches anything before you type GO. (It will erase the disk you point it at — back up first.)
+
+Nothing you do in the live session touches your computer until the installer runs.
+
+### Prerequisites (building the ISO yourself)
 
 - Arch Linux with `archiso` and `base-devel` installed
 - ~15 GB free disk space (build tree + output ISO)
@@ -38,7 +54,7 @@ Output: `NuitOS-YYYY.MM.DD-x86_64.iso` (~3 GB) in `./out/`
 
 ### Run
 
-1. Flash the ISO to a USB stick (UEFI only — the installer uses systemd-boot)
+1. Flash the ISO to a USB stick (the installer is UEFI-only — it uses systemd-boot; the live session itself also boots on BIOS)
 2. Boot the live session into Hyprland
 
 Done. You have a working desktop.
@@ -153,10 +169,11 @@ sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 - `git`
 
 **Fonts:**
-- JetBrains Mono Nerd Font
-- Fira Code, Fantasque, Cascadia (with `ttf-jetbrains-mono` fallback)
+- JetBrains Mono Nerd Font (terminal + UI face — the only coding font shipped)
 
 **Also ships:** `firefox`, `vlc`, `gimp`, `obsidian`, `discord`, `file-roller` — a bootable, day-one desktop. Add anything else with AUR via `yay`.
+
+**Developers:** the ISO ships `base-devel` (C toolchain) but not `nodejs`/`npm`/`cmake` — install them post-setup with `yay -S nodejs npm cmake` if your editor plugins need them.
 
 ---
 
@@ -182,6 +199,8 @@ Hyprland defaults:
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | Open file manager (thunar) |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd> | Open browser (firefox) |
 | <kbd>PrtSc</kbd> / <kbd>Shift</kbd>+<kbd>PrtSc</kbd> | Screenshot region → clipboard / file |
+| <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>C</kbd> | Capture menu (screenshot/record/OCR/QR/color) |
+| <kbd>Super</kbd> + <kbd>F1</kbd> | This key list (opens in a terminal) |
 | <kbd>Super</kbd> + Click/Drag | Move/resize window |
 
 Full config: `configs/hyprland/hyprland.conf`
@@ -203,6 +222,13 @@ $ fastfetch
 - **Font:** JetBrains Mono Nerd
 
 ---
+
+## 🆘 Stuck?
+
+- **Nothing boots / scary vendor error?** Secure Boot is almost certainly still on — see step 3 above.
+- **Black screen after login?** Wait 10 seconds (first start is slow), then press <kbd>Super</kbd>+<kbd>Return</kbd>. If a terminal opens, the system is fine — press <kbd>Super</kbd>+<kbd>F1</kbd> for the key list.
+- **Installer failed?** Re-run it with `nuit-installer --dry-run` and read the plan; then file an issue with your disk layout (`lsblk`) and where it stopped.
+- **Anything else:** [open an issue](https://github.com/SulphShock/NuitOS/issues) — say what you clicked, what you expected, and what happened instead (a phone photo of the screen is perfect).
 
 ## 🤝 Contributing
 

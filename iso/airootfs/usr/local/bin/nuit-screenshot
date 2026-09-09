@@ -23,7 +23,7 @@ if [ "$TARGET" = "copy" ]; then
   FILE="$(mktemp /tmp/nuit-shot-XXXXXX.png)"
   trap 'rm -f "$FILE"' EXIT
 else
-  DIR="${NUIT_SCREENSHOT_DIR:-${OMARCHY_SCREENSHOT_DIR:-$HOME/Pictures}}"
+  DIR="${NUIT_SCREENSHOT_DIR:-$HOME/Pictures}"
   mkdir -p "$DIR"
   FILE="$DIR/screenshot-$(date +%Y-%m-%d_%H-%M-%S).png"
 fi

@@ -78,6 +78,17 @@ if [ "$MODE" = "full" ]; then
     [ "$drift" -eq 0 ] || die "config drift detected — sync the canonical sources and re-run"
     note "drift guard clean"
 
+    # package lists: mkarchiso strips "#..." but leaves trailing whitespace,
+    # which breaks pacstrap lookups — forbid trailing comments outright.
+    for plist in "$REPO/iso/packages.x86_64" \
+                 "$REPO/iso/airootfs/usr/local/share/nuit/pkgs-disk.txt"; do
+        if grep -qE '^[^#[:blank:]]+[[:blank:]]+#' "$plist" 2>/dev/null; then
+            warn "trailing comment in $plist (breaks pacstrap — use full-line comments)"
+            drift=1
+        fi
+    done
+    [ "$drift" -eq 0 ] || die "package list hygiene failed"
+
     note "removing stale build tree: $WORK"
     rm -rf "$WORK"
     note "removing stale output: $ISO_DIR"
@@ -116,11 +127,15 @@ mnt="$(lsblk -nro MOUNTPOINT "/dev/$disk" 2>/dev/null | grep -v '^$' || true)"
 
 # Sanity: not the running root/boot/usr device.
 if grep -q "$DEV" /proc/mounts; then die "$DEV appears in /proc/mounts"; fi
+# Sanity: not the running root/boot/usr device — resolve the root source to its
+# parent disk generically (covers sda, vda, nvme0n1, mmcblk0, nbd, dm/mapper).
 ROOTDEV="$(findmnt -no SOURCE / 2>/dev/null || true)"
-case "$ROOTDEV" in
-    /dev/sd[a-z]*) [ "$ROOTDEV" = "$DEV" ] && die "$DEV is the running root device!" ;;
-    *mapper*) real="$(readlink -f "$ROOTDEV" 2>/dev/null || true)"; [ "$real" = "$DEV" ] && die "$DEV is the running root device!" ;;
-esac
+if [ -n "$ROOTDEV" ]; then
+    ROOTDEV="${ROOTDEV%%\[*}" # strip btrfs subvol suffix: /dev/nvme0n1p2[/@] -> /dev/nvme0n1p2
+    ROOTDISK="/dev/$(lsblk -no PKNAME "$(readlink -f "$ROOTDEV" 2>/dev/null || printf '%s' "$ROOTDEV")" 2>/dev/null | head -1 || true)"
+    [ "$ROOTDISK" = "/dev/" ] && ROOTDISK="$ROOTDEV"  # root is a whole disk, or unresolvable (overlay/live)
+    [ "$ROOTDISK" != "$DEV" ] || die "$DEV holds the running root device ($ROOTDEV)!"
+fi
 
 SIZE_BYTES="$(lsblk -bndo SIZE "/dev/$disk" 2>/dev/null || echo 0)"
 SIZE_G=$(( SIZE_BYTES / 1024 / 1024 / 1024 ))

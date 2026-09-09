@@ -12,6 +12,7 @@ bash-completion
 networkmanager
 network-manager-applet
 openssh
+ufw
 rsync
 wget
 curl
@@ -53,7 +54,6 @@ swappy
 jq
 imagemagick
 libnotify
-playerctl
 fuzzel
 fastfetch
 polkit-gnome
@@ -68,8 +68,6 @@ ripgrep
 fd
 fzf
 tree-sitter
-nodejs
-npm
 python-pynvim
 thunar
 thunar-archive-plugin
@@ -77,13 +75,11 @@ tumbler
 shared-mime-info
 firefox
 sddm
-sddm-kcm
 qt6-declarative
 qt6-5compat
 qt5ct
 qt6ct
 kvantum
-papirus-icon-theme
 adwaita-icon-theme
 lxappearance
 pipewire
@@ -96,12 +92,8 @@ bluez-utils
 base-devel
 gcc
 make
-cmake
 pkgconf
-ttf-fira-code
-ttf-fantasque-nerd
-ttf-cascadia-code
-ttf-jetbrains-mono
+ttf-jetbrains-mono-nerd
 file-roller
 vlc
 gimp
@@ -111,6 +103,7 @@ gum
 gptfdisk
 parted
 dosfstools
+e2fsprogs
 btrfs-progs
 arch-install-scripts
 cryptsetup

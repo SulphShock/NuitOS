@@ -12,7 +12,7 @@ need() {  # need <binary> <install-hint>
 }
 
 latest_shot() {
-  local dir="${NUIT_SCREENSHOT_DIR:-${OMARCHY_SCREENSHOT_DIR:-$HOME/Pictures}}"
+  local dir="${NUIT_SCREENSHOT_DIR:-$HOME/Pictures}"
   ls -t "$dir"/screenshot-*.png 2>/dev/null | head -n1 || true
 }
 
@@ -20,14 +20,12 @@ annotate_last() {
   local shot editor
   shot="$(latest_shot)"
   [ -n "$shot" ] || { notify-send -a Nuit "Nothing to annotate" "Take a screenshot first" 2>/dev/null || true; exit 0; }
-  editor="${NUIT_SCREENSHOT_EDITOR:-${OMARCHY_SCREENSHOT_EDITOR:-}}"
+  editor="${NUIT_SCREENSHOT_EDITOR:-}"
   if [ -z "$editor" ]; then
-    if command -v tensaku-edit >/dev/null 2>&1; then editor="tensaku-edit"
-    elif command -v tensaku >/dev/null 2>&1; then editor="tensaku"
-    elif command -v swappy >/dev/null 2>&1; then editor="swappy -f"
+    if command -v swappy >/dev/null 2>&1; then editor="swappy -f"
     else
-      notify-send -a Nuit "No annotation editor" "Install tensaku-bin from the AUR" 2>/dev/null || true
-      echo "Install an editor: yay -S tensaku-bin" >&2
+      notify-send -a Nuit "No annotation editor" "Install swappy: sudo pacman -S swappy" 2>/dev/null || true
+      echo "Install an editor: sudo pacman -S swappy" >&2
       exit 1
     fi
   fi
@@ -70,10 +68,10 @@ qr_region() {
 }
 
 play_last_recording() {
-  local dir="${NUIT_SCREENRECORD_DIR:-${OMARCHY_SCREENRECORD_DIR:-$HOME/Videos}}"
+  local dir="${NUIT_SCREENRECORD_DIR:-$HOME/Videos}"
   local last
   last="$(ls -t "$dir"/screenrecording-*.mp4 2>/dev/null | head -n1 || true)"
-  [ -n "$last" ] || { notify-send -a Nuit "No recordings" "Alt+Print to record one" 2>/dev/null || true; exit 0; }
+  [ -n "$last" ] || { notify-send -a Nuit "No recordings" "Super+Ctrl+C to record one" 2>/dev/null || true; exit 0; }
   need mpv "install: mpv"
   exec mpv "$last" >/dev/null 2>&1 &
 }
@@ -104,7 +102,7 @@ case "$CHOICE" in
   "Scan QR code from region") qr_region ;;
   "Pick color (copy hex)") exec hyprpicker -a -n ;;
   "Open screenshots folder")
-    DIR="${NUIT_SCREENSHOT_DIR:-${OMARCHY_SCREENSHOT_DIR:-$HOME/Pictures}}"
+    DIR="${NUIT_SCREENSHOT_DIR:-$HOME/Pictures}"
     mkdir -p "$DIR"
     if command -v nautilus >/dev/null 2>&1; then exec nautilus "$DIR" >/dev/null 2>&1 &
     else exec xdg-open "$DIR" >/dev/null 2>&1 & fi

@@ -10,7 +10,9 @@ ShellRoot {
         model: Quickshell.screens
         Scope {
             id: scr
-            property var modelData
+            // Injected by Variants (one Scope per screen). `required` so a
+            // missing injection fails loudly instead of misplacing windows.
+            required property var modelData
 
             // ── The top bar ──
             TopBar { screen: scr.modelData }
@@ -60,7 +62,7 @@ ShellRoot {
                 WlrLayershell.layer: WlrLayer.Overlay
                 WlrLayershell.namespace: "quickshell:gnome-activities"
                 WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-                ActivitiesVerlay { anchors.fill: parent }
+                ActivitiesOverlay { anchors.fill: parent }
             }
         }
     }
@@ -68,11 +70,11 @@ ShellRoot {
     // CLI hooks — e.g. Hyprland: bind = SUPER, S, exec, qs ipc call gsb toggleQuickSettings
     IpcHandler {
         target: "gsb"
-        function toggleQuickSettings() { SysState.toggleQs() }
-        function toggleCalendar()      { SysState.toggleCalendar() }
-        function toggleActivities()    { SysState.toggleActivities() }
-        function toggleSettings()      { SysState.toggleSettings() }
-        function toggleReminders()     { SysState.toggleReminders() }
-        function setBright(v: real)      { SysState.setBrightness(v) }
+        function toggleQuickSettings(): void { SysState.toggleQs() }
+        function toggleCalendar(): void      { SysState.toggleCalendar() }
+        function toggleActivities(): void    { SysState.toggleActivities() }
+        function toggleSettings(): void      { SysState.toggleSettings() }
+        function toggleReminders(): void     { SysState.toggleReminders() }
+        function setBright(v: real): void    { SysState.setBrightness(v) }
     }
 }

@@ -26,9 +26,9 @@ if [[ $DRY_RUN -ne 1 && "$(id -u)" -ne 0 ]]; then
 fi
 
 heading() { gum style --padding "0 4" --border rounded --border-foreground "$ACCENT" --foreground "#e0def4" --bold " $1 "; }
-info()    { gum log --time=time --level info "$@"; }
-warn()    { gum log --time=time --level warn "$@"; }
-fail()    { gum log --time=time --level error "$@"; exit 1; }
+info()    { gum log --time=kitchen --level info "$@"; }
+warn()    { gum log --time=kitchen --level warn "$@"; }
+fail()    { gum log --time=kitchen --level error "$@"; exit 1; }
 prompt()  { gum style --foreground "$DIM" " > $1"; }
 need()    { command -v "$1" >/dev/null 2>&1 || fail "required tool not found: $1"; }
 
@@ -36,9 +36,9 @@ for tool in gum lsblk sgdisk jq pacstrap arch-chroot genfstab bootctl cryptsetup
   need "$tool"
 done
 
-# Reliable device naming for whole-disks like nvme0n1p1 / mmcblk0p1.
+# Reliable device naming for whole-disks (nvme0n1p1, mmcblk0p1, nbd0p1…).
 part_suffix() {
-  [[ "$1" =~ ^(nvme|mmcblk|loop) ]] && echo p || true
+  [[ "$1" =~ ^(nvme|mmcblk|loop|nbd|pmem|md) ]] && echo p || true
 }
 
 # ---------------------------------------------------------------- Phase 1 ---
@@ -57,10 +57,10 @@ echo
 
 # --- Disk ----------------------------------------------------------------
 DISKS_JSON="$(lsblk -J -o NAME,SIZE,MODEL,TYPE,TRAN,MOUNTPOINTS 2>/dev/null)"
-CHOICES="$(jq -r '.blockdevices[] | select(.type=="disk") | "\(.name)\t\(.size)\t\(.model // "unknown")" | gsub("[\t\n]"; " | ")' <<<"$DISKS_JSON")"
+CHOICES="$(jq -r '.blockdevices[] | select(.type=="disk") | "\(.name)\t\(.size)\t\(.model // "unknown")\t\(.tran // "?")" | gsub("[\t\n]"; " | ")' <<<"$DISKS_JSON")"
 [[ -z "$CHOICES" ]] && fail "no disks found"
 prompt "Select the disk to install onto"
-DISK_LINE="$(printf '%s\n' "$CHOICES" | gum choose --cursor-prefix "$ACCENT ▸ " --selected-prefix "$GOOD ✓ " --header "Disk: name | size | model")"
+DISK_LINE="$(printf '%s\n' "$CHOICES" | gum choose --cursor-prefix "$ACCENT ▸ " --selected-prefix "$GOOD ✓ " --header "Disk: name | size | model | connection (usb = stick, anything else = internal)")"
 DISK="$(grep -oP '^[a-zA-Z0-9]+' <<<"$DISK_LINE")"
 DISK_DEV="/dev/$DISK"
 [[ -e "$DISK_DEV" ]] || fail "invalid disk path: $DISK_DEV"
@@ -97,11 +97,17 @@ PS="$(part_suffix "$DISK")"
 P1="${DISK_DEV}${PS}1"
 
 # --- Filesystem / swap / encryption --------------------------------------
-prompt "Root filesystem"
-FS="$(printf 'ext4\nbtrfs\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Filesystem")"
-case "$FS" in ext4|btrfs) : ;; *) fail "unsupported filesystem: $FS" ;; esac
+prompt "Root filesystem (this is where all your files will live)"
+info "ext4 is the standard choice — pick it if unsure. btrfs is newer and advanced."
+FS="$(printf 'ext4 (standard)\nbtrfs (advanced)\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Filesystem")"
+case "$FS" in
+  ext4*)  FS="ext4" ;;
+  btrfs*) FS="btrfs" ;;
+  *) fail "unsupported filesystem: $FS" ;;
+esac
 
-prompt "Swap"
+prompt "Swap (overflow space the system uses when memory runs out)"
+info "8 GB of RAM or more: you can usually choose none. Less than that: a swap partition helps."
 SWAP_OPT="$(printf 'none\nswap partition\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Swap")"
 SWAP_G=""
 if [[ "$SWAP_OPT" == *"swap partition"* ]]; then
@@ -114,7 +120,8 @@ if [[ "$SWAP_OPT" == *"swap partition"* ]]; then
   (( SWAP_G > 128 )) && SWAP_G=128
 fi
 
-prompt "Disk encryption (LUKS2 on root)"
+prompt "Disk encryption (scrambles everything if the laptop is lost or stolen)"
+info "If you enable it, you will type this passphrase on every boot. There is no recovery without it."
 LUKS_OPT="$(printf 'none\nfull-disk encryption (LUKS2)\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Encryption")"
 LUKS_PASS=""
 [[ "$LUKS_OPT" == *"LUKS2"* ]] && {
@@ -156,7 +163,7 @@ HOSTNAME="$(gum input --placeholder "nuitos")"
 # The live ISO autologins the live user via its own /etc/sddm.conf — that must
 # NOT leak into the installed system. Ask explicitly; default is no autologin.
 prompt "Autologin on boot (skip the login screen)?"
-if gum confirm --bg "#1a1b26" --affirmative "Yes, autologin" --negative "No (ask password)" \
+if gum confirm --prompt.background "#1a1b26" --affirmative "Yes, autologin" --negative "No (ask password)" \
   "Autologin ${USERNAME} on boot?"; then
   AUTOLOGIN_OPT="yes"
 else
@@ -172,7 +179,7 @@ ${GOOD}Locale:${DIM}   ${LANG_VAL}  ${KEYMAP}  ${TZ}
 ${GOOD}User:${DIM}     ${USERNAME} (${FULL_NAME:-$USERNAME})  host=${HOSTNAME}
 ${GOOD}Login:${DIM}    autologin=${AUTOLOGIN_OPT}  theme=gruvbox-minimal-sddm"
 
-gum confirm --bg "#1a1b26" --affirmative "GO" --negative "Abort" \
+gum confirm --prompt.background "#1a1b26" --affirmative "GO" --negative "Abort" \
   "Erase $DISK_DEV and install NuitOS?" || { warn "aborted"; exit 1; }
 
 if [[ $DRY_RUN -eq 1 ]]; then
@@ -256,6 +263,7 @@ mapfile -t PKGS < <(grep -vE '^\s*(#|$)' "$PKG_LIST")
 # tail is shown — a bare spinner exit code says nothing about which package broke.
 PACSTRAP_LOG="/tmp/nuit-pacstrap.log"
 : > "$PACSTRAP_LOG"
+info "This downloads about 2 GB and takes several minutes — plug in power and leave the machine alone."
 if gum spin --spinner dot --title "pacstrap ${#PKGS[@]} packages…" -- \
     bash -c 'exec pacstrap -K /mnt "$@" >"$0" 2>&1' "$PACSTRAP_LOG" "${PKGS[@]}"; then
   info "packages installed (${#PKGS[@]})"
@@ -347,6 +355,9 @@ systemctl enable sddm.service
 systemctl enable NetworkManager.service
 systemctl enable bluetooth.service || echo "warn: bluetooth.service enable failed" >&2
 systemctl enable power-profiles-daemon.service || echo "warn: power-profiles-daemon.service enable failed" >&2
+# Firewall on by default (deny incoming, allow outgoing); the user can tune with ufw.
+systemctl enable ufw.service || echo "warn: ufw.service enable failed" >&2
+ufw --force enable >/dev/null 2>&1 || echo "warn: ufw enable failed" >&2
 
 # Hostname / hosts
 echo "${NUIT_HOSTNAME}" > /etc/hostname
@@ -447,5 +458,5 @@ gum style --padding "0 2" --foreground "$GOOD" \
  - host ${HOSTNAME} · ${LANG_VAL} · ${KEYMAP} · ${TZ}
   - ${FS} root ${LUKS_OPT:+· LUKS2 }· systemd-boot · SDDM (autologin ${AUTOLOGIN_OPT})
  - remove the installation media, then reboot"
-gum confirm --bg "#1a1b26" --affirmative "Reboot now" --negative "Stay in live session" \
+gum confirm --prompt.background "#1a1b26" --affirmative "Reboot now" --negative "Stay in live session" \
   && systemctl reboot || info "done — reboot anytime with: systemctl reboot"

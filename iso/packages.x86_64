@@ -18,6 +18,7 @@ bash-completion
 networkmanager
 network-manager-applet
 openssh
+ufw
 rsync
 wget
 curl
@@ -68,7 +69,6 @@ swappy
 jq
 imagemagick
 libnotify
-playerctl
 fuzzel
 fastfetch
 polkit-gnome
@@ -87,8 +87,6 @@ ripgrep
 fd
 fzf
 tree-sitter
-nodejs
-npm
 python-pynvim
 
 # File manager
@@ -102,7 +100,6 @@ firefox
 
 # SDDM (gruvbox-minimal-sddm needs qt6-5compat for Qt5Compat.GraphicalEffects/FastBlur)
 sddm
-sddm-kcm
 qt6-declarative
 qt6-5compat
 
@@ -110,7 +107,7 @@ qt6-5compat
 qt5ct
 qt6ct
 kvantum
-papirus-icon-theme
+# adwaita-icon-theme is required: quickshell Theme.qml hardcodes Adwaita symbolic paths
 adwaita-icon-theme
 lxappearance
 
@@ -129,14 +126,10 @@ bluez-utils
 base-devel
 gcc
 make
-cmake
 pkgconf
 
-# Fonts
-ttf-fira-code
-ttf-fantasque-nerd
-ttf-cascadia-code
-ttf-jetbrains-mono
+# Fonts (JetBrainsMono Nerd is the terminal/UI face — see ghostty + quickshell Theme)
+ttf-jetbrains-mono-nerd
 
 # Apps
 file-roller
@@ -150,6 +143,8 @@ gum
 gptfdisk
 parted
 dosfstools
+# e2fsprogs = ext4 (mkfs.ext4/fsck.ext4 — pulled in by nothing else, installer needs it)
+e2fsprogs
 btrfs-progs
 arch-install-scripts
 cryptsetup

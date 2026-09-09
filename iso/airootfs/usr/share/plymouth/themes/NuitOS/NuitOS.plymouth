@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=Nuit OS
-Description=Tokyo Night moonrise boot splash for Nuit OS
+Description=Gruvbox-dark moonrise boot splash for Nuit OS
 ModuleName=script
 
 [script]
