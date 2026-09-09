@@ -23,6 +23,7 @@ wget
 curl
 htop
 tmux
+procps-ng
 unzip
 man-db
 man-pages
@@ -54,8 +55,15 @@ qt6-imageformats
 hyprpicker
 grim
 slurp
+gpu-screen-recorder
 wl-clipboard
 brightnessctl
+# Nuit capture menu backends (OCR / QR / playback / annotation)
+tesseract
+tesseract-data-eng
+zbar
+mpv
+swappy
 # NuitOS utility scripts depend on these
 jq
 imagemagick
@@ -103,6 +111,7 @@ qt5ct
 qt6ct
 kvantum
 papirus-icon-theme
+adwaita-icon-theme
 lxappearance
 
 # Audio
@@ -122,8 +131,6 @@ gcc
 make
 cmake
 pkgconf
-docker
-docker-compose
 
 # Fonts
 ttf-fira-code
@@ -143,5 +150,6 @@ gum
 gptfdisk
 parted
 dosfstools
+btrfs-progs
 arch-install-scripts
 cryptsetup

@@ -156,7 +156,7 @@ sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 - JetBrains Mono Nerd Font
 - Fira Code, Fantasque, Cascadia (with `ttf-jetbrains-mono` fallback)
 
-**Also ships:** `firefox`, `docker` + `docker-compose`, `vlc`, `gimp`, `obsidian`, `discord`, `file-roller` — a bootable, day-one desktop. Add anything else with AUR via `yay`.
+**Also ships:** `firefox`, `vlc`, `gimp`, `obsidian`, `discord`, `file-roller` — a bootable, day-one desktop. Add anything else with AUR via `yay`.
 
 ---
 

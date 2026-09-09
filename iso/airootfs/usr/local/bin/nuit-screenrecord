@@ -1,0 +1,59 @@
+#!/bin/bash
+# nuit-screenrecord — toggle screen recording (gpu-screen-recorder)
+# Usage: nuit-screenrecord [region|fullscreen]
+#   No args + running  → stop recording, notify with file path
+#   region             → pick a region/window, record it (default)
+#   fullscreen         → record the focused monitor
+# Files: ~/Videos/screenrecording-YYYY-MM-DD_HH-MM-SS.mp4
+set -euo pipefail
+
+MODE="${1:-region}"
+DIR="${NUIT_SCREENRECORD_DIR:-${OMARCHY_SCREENRECORD_DIR:-$HOME/Videos}}"
+
+if pgrep -x gpu-screen-recorder >/dev/null 2>&1; then
+  pkill -INT -x gpu-screen-recorder
+  sleep 1
+  LAST="$(ls -t "$DIR"/screenrecording-*.mp4 2>/dev/null | head -n1 || true)"
+  if [ -n "$LAST" ]; then
+    notify-send -a Nuit "Recording stopped" "$(basename "$LAST")" 2>/dev/null || true
+    echo "$LAST"
+  else
+    notify-send -a Nuit "Recording stopped" 2>/dev/null || true
+  fi
+  exit 0
+fi
+
+command -v gpu-screen-recorder >/dev/null 2>&1 || {
+  notify-send -a Nuit "Screen recording needs gpu-screen-recorder" "Run the installer command from chat" 2>/dev/null || true
+  echo "Missing: gpu-screen-recorder (install it, then retry)" >&2
+  exit 1
+}
+[ -d "$DIR" ] || {
+  notify-send -a Nuit "Recordings folder missing" "$DIR must exist" 2>/dev/null || true
+  echo "Directory must exist: $DIR" >&2
+  exit 1
+}
+
+FILE="$DIR/screenrecording-$(date +%Y-%m-%d_%H-%M-%S).mp4"
+case "$MODE" in
+  region)
+    GEO="$(slurp 2>/dev/null)" || exit 0    # Esc = dismissed
+    [ -n "$GEO" ] || exit 0
+    # slurp "x,y WxH" → gpu-screen-recorder "x,y,WxH"
+    REGION="$(echo "$GEO" | awk -F'[ ,x]' '{print $1","$2","$3"x"$4}')"
+    nohup gpu-screen-recorder -w region -region "$REGION" -f 60 -o "$FILE" >/dev/null 2>&1 &
+    ;;
+  fullscreen)
+    MON="$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true) | .name')"
+    if [ -n "$MON" ]; then
+      nohup gpu-screen-recorder -w "$MON" -f 60 -o "$FILE" >/dev/null 2>&1 &
+    else
+      nohup gpu-screen-recorder -w focused -f 60 -o "$FILE" >/dev/null 2>&1 &
+    fi
+    ;;
+  *) echo "Usage: $(basename "$0") [region|fullscreen]" >&2; exit 1 ;;
+esac
+
+echo "$FILE" > /tmp/nuit-recording-path
+notify-send -a Nuit "Recording…" "Alt+Print again (or menu) to stop" 2>/dev/null || true
+echo "Recording to $FILE"

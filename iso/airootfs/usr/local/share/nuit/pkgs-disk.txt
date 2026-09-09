@@ -17,6 +17,7 @@ wget
 curl
 htop
 tmux
+procps-ng
 unzip
 man-db
 man-pages
@@ -41,8 +42,14 @@ qt6-imageformats
 hyprpicker
 grim
 slurp
+gpu-screen-recorder
 wl-clipboard
 brightnessctl
+tesseract
+tesseract-data-eng
+zbar
+mpv
+swappy
 jq
 imagemagick
 libnotify
@@ -77,6 +84,7 @@ qt5ct
 qt6ct
 kvantum
 papirus-icon-theme
+adwaita-icon-theme
 lxappearance
 pipewire
 pipewire-pulse
@@ -90,8 +98,6 @@ gcc
 make
 cmake
 pkgconf
-docker
-docker-compose
 ttf-fira-code
 ttf-fantasque-nerd
 ttf-cascadia-code
@@ -105,6 +111,7 @@ gum
 gptfdisk
 parted
 dosfstools
+btrfs-progs
 arch-install-scripts
 cryptsetup
 systemd

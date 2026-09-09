@@ -32,7 +32,7 @@ fail()    { gum log --time=time --level error "$@"; exit 1; }
 prompt()  { gum style --foreground "$DIM" " > $1"; }
 need()    { command -v "$1" >/dev/null 2>&1 || fail "required tool not found: $1"; }
 
-for tool in gum lsblk sgdisk jq pacstrap arch-chroot genfstab bootctl cryptsetup partprobe udevadm; do
+for tool in gum lsblk sgdisk jq pacstrap arch-chroot genfstab bootctl cryptsetup partprobe udevadm blkid findmnt mount umount mkfs.fat mkfs.btrfs mkfs.ext4 mkswap localectl timedatectl hwclock systemctl; do
   need "$tool"
 done
 
@@ -64,18 +64,27 @@ DISK_LINE="$(printf '%s\n' "$CHOICES" | gum choose --cursor-prefix "$ACCENT ▸ 
 DISK="$(grep -oP '^[a-zA-Z0-9]+' <<<"$DISK_LINE")"
 DISK_DEV="/dev/$DISK"
 [[ -e "$DISK_DEV" ]] || fail "invalid disk path: $DISK_DEV"
-MNTD="$(jq -r '.blockdevices[] | select(.name=="'"$DISK"'") | .mountpoints[]? // empty' <<<"$DISKS_JSON")"
+# Refuse a disk with any mounted partition (not just a disk-level mount).
+MNTD="$(jq -r '.blockdevices[] | select(.name=="'"$DISK"'") | (.mountpoints[]?, (.children[]? | .mountpoints[]?)) // empty' <<<"$DISKS_JSON")"
 [[ -n "$MNTD" ]] && fail "disk $DISK is mounted at $MNTD — unmount first"
 
 # Guard: refuse to wipe the very device this live session is running from.
 # Resolve the root device to its parent disk (sda1 -> sda, nvme0n1p2 -> nvme0n1).
+# On archiso / is an overlay — also resolve the real boot device.
 LIVE_DISK=""
-LIVE_SRC="$(findmnt -no SOURCE / 2>/dev/null | head -1)"
-LIVE_SRC="${LIVE_SRC%%\[*}" # strip btrfs subvol suffix: /dev/nvme0n1p2[/@] -> /dev/nvme0n1p2
-if [ -n "$LIVE_SRC" ] && [[ "$LIVE_SRC" == /dev/* ]]; then
-  LIVE_DISK="$(lsblk -no PKNAME "$LIVE_SRC" 2>/dev/null | head -1)"
-  [ -z "$LIVE_DISK" ] && LIVE_DISK="${LIVE_SRC#/dev/}"
-fi
+for _src in "$(findmnt -no SOURCE / 2>/dev/null | head -1)" \
+           "$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null | head -1)"; do
+  _src="${_src%%\[*}" # strip btrfs subvol suffix: /dev/nvme0n1p2[/@] -> /dev/nvme0n1p2
+  if [ -n "$_src" ] && [[ "$_src" == /dev/* ]]; then
+    _disk="$(lsblk -no PKNAME "$_src" 2>/dev/null | head -1)"
+    [ -z "$_disk" ] && _disk="${_src#/dev/}"
+    # Overlay / loop devices report themselves; keep the first real disk found.
+    if [ -n "$_disk" ] && [[ "$_disk" != loop* ]] && [[ "$_disk" != overlay ]]; then
+      LIVE_DISK="$_disk"
+      break
+    fi
+  fi
+done
 if [ -n "$LIVE_DISK" ] && [ "$DISK" = "$LIVE_DISK" ]; then
   warn "$DISK_DEV appears to be the device this live session is running from"
   if ! gum confirm --affirmative "Erase anyway" --negative "Abort" \
@@ -86,8 +95,6 @@ fi
 
 PS="$(part_suffix "$DISK")"
 P1="${DISK_DEV}${PS}1"
-P2=""
-P3=""
 
 # --- Filesystem / swap / encryption --------------------------------------
 prompt "Root filesystem"
@@ -103,6 +110,7 @@ if [[ "$SWAP_OPT" == *"swap partition"* ]]; then
   prompt "Swap size in GiB (0 = none, default = RAM)"
   SWAP_G="$(gum input --placeholder "${RAM_GB}")"
   SWAP_G="${SWAP_G:-$RAM_GB}"
+  [[ "$SWAP_G" =~ ^[0-9]+$ ]] || SWAP_G="$RAM_GB"
   (( SWAP_G > 128 )) && SWAP_G=128
 fi
 
@@ -212,7 +220,14 @@ if [[ "$LUKS_OPT" == *"LUKS2"* ]]; then
   printf '%s' "$LUKS_PASS" | cryptsetup open --type luks2 "$ROOT_PART" cryptroot -
   TARGET="/dev/mapper/cryptroot"
 fi
-ROOT_UUID="$(blkid -s UUID -o value "$ROOT_PART")"
+ROOT_UUID=""
+for _try in 1 2 3 4 5; do
+  udevadm settle 2>/dev/null || true
+  ROOT_UUID="$(blkid -s UUID -o value "$ROOT_PART" 2>/dev/null || true)"
+  [[ -n "$ROOT_UUID" ]] && break
+  sleep 1
+done
+[[ -n "$ROOT_UUID" ]] || fail "could not read UUID of $ROOT_PART after format"
 
 info "creating filesystems (${FS})"
 mkfs.fat -F32 -n ESP "$P1" >/dev/null
@@ -231,12 +246,12 @@ mount "$TARGET" /mnt
 mount "$P1" /mnt/boot
 
 info "installing packages (pacstrap)"
-mapfile -t PKGS < "$PKG_LIST"
+mapfile -t PKGS < <(grep -vE '^\s*(#|$)' "$PKG_LIST")
 [[ ${#PKGS[@]} -gt 0 ]] || fail "empty package list"
 gum spin --spinner dot --title "pacstrap ${#PKGS[@]} packages…" -- pacstrap -K /mnt "${PKGS[@]}"
 
 info "generating fstab"
-genfstab -U /mnt >> /mnt/etc/fstab
+genfstab -U /mnt > /mnt/etc/fstab
 
 # --- Payload: live image -> target (MUST run outside chroot) --------------
 # NOTE: everything below copies FROM the live ISO root (/) TO the target
@@ -260,6 +275,9 @@ mkdir -p /mnt/usr/local/share/nuit
 cp -a /usr/local/share/nuit/. /mnt/usr/local/share/nuit/ 2>/dev/null || true
 
 # --- Stage 2 (chroot) ----------------------------------------------------
+# Secrets and host-side values cross into stage2 via the environment (never
+# through heredoc expansion): the stage2 script is written with a QUOTED
+# heredoc so `$`, backticks or `!` in passwords cannot expand on the host.
 info "configuring system (chroot stage 2)"
 LUKS_HOOK=""; [[ "$LUKS_OPT" == *"LUKS2"* ]] && LUKS_HOOK="encrypt"
 ROOT_LINE="root=UUID=${ROOT_UUID} rw quiet"
@@ -270,9 +288,20 @@ User=${USERNAME}
 Session=hyprland
 "
 
-cat > /mnt/root/nuit-stage2.sh <<STAGE2
+cat > /mnt/root/nuit-stage2.sh <<'STAGE2'
 #!/bin/bash
 set -euo pipefail
+
+NUIT_USER="${NUIT_USER:?missing NUIT_USER}"
+NUIT_PASS="${NUIT_PASS:?missing NUIT_PASS}"
+NUIT_HOSTNAME="${NUIT_HOSTNAME:?missing NUIT_HOSTNAME}"
+NUIT_LOCALE="${NUIT_LOCALE:?missing NUIT_LOCALE}"
+NUIT_LANG="${NUIT_LANG:?missing NUIT_LANG}"
+NUIT_KEYMAP="${NUIT_KEYMAP:?missing NUIT_KEYMAP}"
+NUIT_TZ="${NUIT_TZ:?missing NUIT_TZ}"
+NUIT_LUKS_HOOK="${NUIT_LUKS_HOOK:-}"
+NUIT_ROOT_LINE="${NUIT_ROOT_LINE:?missing NUIT_ROOT_LINE}"
+NUIT_AUTOLOGIN_CONF="${NUIT_AUTOLOGIN_CONF:-}"
 
 # (Payload — skel, nuit-* scripts, backgrounds, plymouth + SDDM themes — was
 # already copied from the live image to /mnt BEFORE chroot. Do not copy here:
@@ -287,43 +316,40 @@ ShowDelay=0
 PLY
 
 # SDDM: gruvbox-minimal-sddm theme; autologin only when opted in (default off).
-# AUTOLOGIN_CONF is expanded on the host when writing stage2 (empty = no
-# autologin, password required at the login screen).
 cat > /etc/sddm.conf <<SDDM
-${AUTOLOGIN_CONF}[Theme]
+${NUIT_AUTOLOGIN_CONF}[Theme]
 Current=gruvbox-minimal-sddm
 SDDM
 
-# Services
+# Services (sddm + NetworkManager are required for a graphical boot)
 systemctl enable sddm.service
 systemctl enable NetworkManager.service
-systemctl enable bluetooth.service || true
-systemctl enable power-profiles-daemon.service || true
+systemctl enable bluetooth.service || echo "warn: bluetooth.service enable failed" >&2
+systemctl enable power-profiles-daemon.service || echo "warn: power-profiles-daemon.service enable failed" >&2
 
 # Hostname / hosts
-echo "${HOSTNAME}" > /etc/hostname
-grep -q "127.0.1.1" /etc/hosts || echo "127.0.1.1 ${HOSTNAME}" >> /etc/hosts
-sed -i "s/^127.0.1.1 .*/127.0.1.1 ${HOSTNAME}/" /etc/hosts
+echo "${NUIT_HOSTNAME}" > /etc/hostname
+grep -q "127.0.1.1" /etc/hosts || echo "127.0.1.1 ${NUIT_HOSTNAME}" >> /etc/hosts
+sed -i "s/^127.0.1.1 .*/127.0.1.1 ${NUIT_HOSTNAME}/" /etc/hosts
 
 # Locale (idempotent: keep en_US as a fallback alongside the chosen one)
-# \${_loc} is escaped so it expands inside stage2, not while writing it here.
-for _loc in "${LOCALE}" "en_US.UTF-8 UTF-8"; do
-  grep -qFx "\${_loc}" /etc/locale.gen || echo "\${_loc}" >> /etc/locale.gen
+for _loc in "${NUIT_LOCALE}" "en_US.UTF-8 UTF-8"; do
+  grep -qFx "${_loc}" /etc/locale.gen || echo "${_loc}" >> /etc/locale.gen
 done
 locale-gen >/dev/null 2>&1
-echo "LANG=${LANG_VAL}" > /etc/locale.conf
+echo "LANG=${NUIT_LANG}" > /etc/locale.conf
 
 # Keymap
-echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
+echo "KEYMAP=${NUIT_KEYMAP}" > /etc/vconsole.conf
 
 # Timezone + UTC clock
-ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime
-hwclock --systohc --utc || true
+ln -sf "/usr/share/zoneinfo/${NUIT_TZ}" /etc/localtime
+hwclock --systohc --utc || echo "warn: hwclock failed (non-fatal in VMs)" >&2
 
 # User (skel dotfiles land automatically) + policy config
-if ! id ${USERNAME} &>/dev/null; then
-  useradd -m -G wheel,audio,video,storage -s /bin/bash ${USERNAME}
-  echo "${USERNAME}:${USER_PASS}" | chpasswd
+if ! id "${NUIT_USER}" &>/dev/null; then
+  useradd -m -G wheel,audio,video,storage -s /bin/bash "${NUIT_USER}"
+  echo "${NUIT_USER}:${NUIT_PASS}" | chpasswd
 fi
 passwd -l root 2>/dev/null || true
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
@@ -333,17 +359,17 @@ grep -q '^%wheel ALL=(ALL:ALL) ALL' /etc/sudoers || echo '%wheel ALL=(ALL:ALL) A
 # plymouth must come BEFORE encrypt: the encrypt hook asks for the
 # passphrase through plymouth, so the prompt renders over the boot splash
 # instead of a raw TTY.
-cat > /etc/mkinitcpio.conf <<'MK'
+cat > /etc/mkinitcpio.conf <<MK
 MODULES=()
 BINARIES=()
 FILES=()
-HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block plymouth ${LUKS_HOOK} filesystems fsck)
+HOOKS=(base udev autodetect microcode modconf kms keyboard keymap consolefont block plymouth ${NUIT_LUKS_HOOK} filesystems fsck)
 COMPRESSION=(zstd)
 MK
-mkinitcpio -P >/dev/null 2>&1 || true
+mkinitcpio -P
 
 # Bootloader (systemd-boot)
-bootctl --esp-path=/boot --boot-path=/boot install >/dev/null 2>&1 || true
+bootctl --esp-path=/boot --boot-path=/boot install
 mkdir -p /boot/loader /boot/loader/entries
 cat > /boot/loader/loader.conf <<'LD'
 default  nuitos.conf
@@ -362,19 +388,30 @@ UCODE_LINES=""
 cat > /boot/loader/entries/nuitos.conf <<ENT
 title   Nuit OS
 linux   /vmlinuz-linux
-\${UCODE_LINES}initrd  /initramfs-linux.img
-options ${ROOT_LINE}
+${UCODE_LINES}initrd  /initramfs-linux.img
+options ${NUIT_ROOT_LINE}
 ENT
 STAGE2
 
 chmod +x /mnt/root/nuit-stage2.sh
 gum spin --spinner line --title "stage 2: users, theming, initramfs, bootloader…" -- \
-  arch-chroot /mnt /bin/bash /root/nuit-stage2.sh
+  arch-chroot /mnt env \
+    "NUIT_USER=${USERNAME}" \
+    "NUIT_PASS=${USER_PASS}" \
+    "NUIT_HOSTNAME=${HOSTNAME}" \
+    "NUIT_LOCALE=${LOCALE}" \
+    "NUIT_LANG=${LANG_VAL}" \
+    "NUIT_KEYMAP=${KEYMAP}" \
+    "NUIT_TZ=${TZ}" \
+    "NUIT_LUKS_HOOK=${LUKS_HOOK}" \
+    "NUIT_ROOT_LINE=${ROOT_LINE}" \
+    "NUIT_AUTOLOGIN_CONF=${AUTOLOGIN_CONF}" \
+    /bin/bash /root/nuit-stage2.sh
 rm -f /mnt/root/nuit-stage2.sh
 
 sync
 umount -R /mnt || true
-[[ -n "$SWAP_PART" ]] && swapoff -a || true
+[[ -n "${SWAP_PART:-}" ]] && swapoff "$SWAP_PART" 2>/dev/null || true
 [[ "$LUKS_OPT" == *"LUKS2"* ]] && cryptsetup close cryptroot || true
 
 heading "Done"

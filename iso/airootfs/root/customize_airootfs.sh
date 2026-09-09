@@ -40,3 +40,7 @@ install_yay() {
 if ! command -v yay &>/dev/null; then
   install_yay
 fi
+
+# Nuit helpers must stay executable in the live env regardless of how the
+# working tree was checked out (mkarchiso preserves source modes).
+chmod 755 /usr/local/bin/nuit-* 2>/dev/null || true

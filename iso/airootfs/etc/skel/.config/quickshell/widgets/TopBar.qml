@@ -76,14 +76,14 @@ PanelWindow {
 
     function switchWorkspace(target) {
         workspaceSwitch.command = ["hyprctl", "dispatch",
-            "hl.dsp.focus({ workspace = " + String(target) + " })"]
+            "workspace", String(target)]
         workspaceSwitch.running = true
     }
 
     function cycleWorkspace(direction) {
         const target = direction > 0 ? "e+1" : "e-1"
         workspaceSwitch.command = ["hyprctl", "dispatch",
-            "hl.dsp.focus({ workspace = \"" + target + "\" })"]
+            "workspace", target]
         workspaceSwitch.running = true
     }
 
