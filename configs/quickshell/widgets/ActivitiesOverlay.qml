@@ -6,12 +6,14 @@ import ".."
 
 Rectangle {
     id: overlay
-    color: "#E61D2021"
+    color: Theme.scrim
 
     property int selectedIndex: 0
 
     // ── Entries hidden on request: avahi utils, xgps utils,
-    // hardware locality (lstopo), Nuit OS Installer, Volume Control ──
+    // hardware locality (lstopo), Volume Control ──
+    // NOTE: the Nuit OS Installer is intentionally VISIBLE (it is the disk
+    // installer; README + keybinds sheet point users at the app grid).
     // Matched case-insensitively against the desktop id + display name.
     readonly property var hiddenMatchers: [
         "avahi",               // Avahi Zeroconf / SSH / VNC browsers
@@ -19,7 +21,6 @@ Rectangle {
         "xgps",                // xgps + xgpsspeed
         "v4l2", "qv4l2", "qvidcap", // Qt V4L2 test + video capture utilities
         "lstopo", "hardware locality",
-        "nuit-installer", "nuit os installer",
         "pavucontrol", "volume control"
     ]
 
@@ -136,13 +137,13 @@ Rectangle {
             font { family: Theme.fontFamily; pixelSize: 14 }
             color: Theme.text
             placeholderText: "Type to search"
-            placeholderTextColor: "#99EBDBB2"
+            placeholderTextColor: Theme.faintText
             verticalAlignment: TextInput.AlignVCenter
             leftPadding: 18; rightPadding: 18
             background: Rectangle {
                 radius: height / 2
-                color: "#33EBDBB2"
-                border.color: search.activeFocus ? "#66EBDBB2" : "#22EBDBB2"
+                color: Theme.wellSoft
+                border.color: search.activeFocus ? Theme.focusBorder : Theme.outline
                 border.width: 1
                 Behavior on border.color { ColorAnimation { duration: 140 } }
             }
@@ -175,8 +176,8 @@ Rectangle {
             width: parent.width
             height: Math.max(200, Math.min(480, overlay.height - 360))
             radius: Theme.radiusMd
-            color: "#1AEBDBB2"
-            border.color: "#22EBDBB2"
+            color: Theme.inactiveBg
+            border.color: Theme.outline
             border.width: 1
             clip: true
             visible: overlay.filteredApps.length > 0
@@ -195,7 +196,7 @@ Rectangle {
                     contentItem: Rectangle {
                         implicitWidth: 6
                         radius: 3
-                        color: "#66EBDBB2"
+                        color: Theme.focusBorder
                     }
                 }
 

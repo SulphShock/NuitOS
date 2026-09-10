@@ -68,7 +68,7 @@ Rectangle {
         rightPadding: 14
         contentItem: Text {
             text: shellButton.text
-            color: shellButton.checked ? "#1D2021" : Theme.text
+            color: shellButton.checked ? Theme.accentText : Theme.text
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             font { family: Theme.fontFamily; pixelSize: 11; bold: shellButton.checked }
@@ -166,7 +166,7 @@ Rectangle {
                         Text {
                             anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
                             text: modelData
-                            color: panel.section === index ? "#1D2021" : Theme.text
+                            color: panel.section === index ? Theme.accentText : Theme.text
                             font { family: Theme.fontFamily; pixelSize: 12; bold: panel.section === index }
                         }
                         MouseArea {
@@ -226,7 +226,7 @@ Rectangle {
                                 Text {
                                     anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                                     text: modelData.name + "  /  " + modelData.variant
-                                    color: themeCard.selected ? "#1D2021" : Theme.text
+                                    color: themeCard.selected ? Theme.accentText : Theme.text
                                     font { family: Theme.fontFamily; pixelSize: 12; bold: themeCard.selected }
                                 }
                                 Row {
@@ -294,7 +294,7 @@ Rectangle {
                     }
                     Rectangle {
                         Layout.fillWidth: true; Layout.fillHeight: true
-                        radius: Theme.radiusMd; color: "#1D2021"
+                        radius: Theme.radiusMd; color: Theme.accentText
                         Image { anchors.fill: parent; anchors.margins: 16; visible: !panel.asciiMode && panel.screensaverImage !== ""; source: panel.screensaverImage; fillMode: Image.PreserveAspectFit }
                         Text { anchors.centerIn: parent; visible: panel.asciiMode || panel.screensaverImage === ""; text: panel.asciiMode ? panel.customAscii : "Choose an image"; color: Theme.accent; font { family: Theme.fontFamily; pixelSize: 18; bold: true } }
                     }
@@ -337,9 +337,9 @@ Rectangle {
                             }
                             Text {
                                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: 4 }
-                                text: modelData.split("/").pop(); color: "#EBDBB2"; elide: Text.ElideMiddle
+                                text: modelData.split("/").pop(); color: Theme.text; elide: Text.ElideMiddle
                                 font { family: Theme.fontFamily; pixelSize: 9 }
-                                style: Text.Outline; styleColor: "#1D2021"
+                                style: Text.Outline; styleColor: Theme.accentText
                             }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: panel.setWallpaper(modelData) }
                         }

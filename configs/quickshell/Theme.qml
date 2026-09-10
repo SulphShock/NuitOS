@@ -3,7 +3,7 @@ import QtQuick
 import Quickshell
 
 Singleton {
-    // Typography (HIG: Cantarell, 13px, bold for bar chrome)
+    // Typography — JetBrains Mono Nerd Font everywhere (UI + terminal face)
     readonly property string fontFamily: "JetBrains Mono Nerd Font"
     readonly property int    fontPx: 13
     readonly property int    fontPxSmall: 11
@@ -27,7 +27,20 @@ Singleton {
     property color dimText:              "#B3EBDBB2"
     property color accent:               "#83A598"
 
-    // Radii (GNOME shell menus ≈ 24, controls ≈ 14)
+    // Semantic roles — widgets must use these, never hard-code hex.
+    property color accentText:             "#1D2021"   // text/glyphs on accent fills
+    property color accentTextDim:          "#E6EBDBB2" // secondary text on accent fills
+    property color fgBright:             "#FBF1C7"   // emphasis on dark (today, selected)
+    property color error:                "#FB4934"   // inline errors, destructive text
+    property color danger:               "#CC241D"   // destructive fills (power, delete hover)
+    property color scrim:                "#E61D2021" // fullscreen overlay dim
+    property color wellSoft:             "#33EBDBB2" // search fields, list wells
+    property color focusBorder:          "#66EBDBB2" // focused borders, scrollbars
+    property color faintText:            "#99EBDBB2" // placeholders
+    property color ghostText:            "#55EBDBB2" // out-of-month, de-emphasized
+
+    // Radii — 24 panels / 14 controls / 10 rows+inputs.
+    // Circles and pills use r = height/2 (chips, icon buttons, search field).
     readonly property int radiusLg: 24
     readonly property int radiusMd: 14
     readonly property int radiusSm: 10
@@ -47,6 +60,10 @@ Singleton {
         return "file:///usr/share/icons/Adwaita/symbolic/" + folder + "/" + resolved + ".svg"
     }
 
+    function tint(src, alpha) {
+        return Qt.rgba(src.r, src.g, src.b, alpha)
+    }
+
     function applyTheme(theme) {
         if (theme.background) {
             background = theme.background
@@ -56,7 +73,16 @@ Singleton {
         if (theme.foreground) {
             foreground = theme.foreground
             text = foreground
-            dimText = Qt.rgba(foreground.r, foreground.g, foreground.b, 0.7)
+            // All cream-tinted surfaces re-derive so contrast themes apply fully.
+            dimText = tint(foreground, 0.7)
+            hover = tint(foreground, 0.15)
+            hoverStrong = tint(foreground, 0.25)
+            inactiveBg = tint(foreground, 0.12)
+            outline = tint(foreground, 0.13)
+            wellSoft = tint(foreground, 0.2)
+            focusBorder = tint(foreground, 0.4)
+            faintText = tint(foreground, 0.6)
+            ghostText = tint(foreground, 0.33)
         }
         if (theme.green) green = theme.green
         if (theme.blue) blue = theme.blue

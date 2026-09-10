@@ -50,6 +50,7 @@ hyprlock
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-wlr
 xdg-utils
+# Desktop shell (QuickShell — bar, launcher, notifications, control center)
 quickshell
 qt6-svg
 qt6-imageformats
@@ -98,16 +99,16 @@ shared-mime-info
 # Browser
 firefox
 
-# SDDM (gruvbox-minimal-sddm needs qt6-5compat for Qt5Compat.GraphicalEffects/FastBlur)
-sddm
+# Login (LightDM + slick-greeter, Mint-style; gruvbox via slick-greeter.conf)
+lightdm
+lightdm-slick-greeter
 qt6-declarative
-qt6-5compat
 
 # Appearance
 qt5ct
 qt6ct
 kvantum
-# adwaita-icon-theme is required: quickshell Theme.qml hardcodes Adwaita symbolic paths
+# adwaita-icon-theme covers GTK symbolic paths
 adwaita-icon-theme
 lxappearance
 
@@ -128,15 +129,12 @@ gcc
 make
 pkgconf
 
-# Fonts (JetBrainsMono Nerd is the terminal/UI face — see ghostty + quickshell Theme)
+# Fonts (JetBrainsMono Nerd is the terminal/UI face)
 ttf-jetbrains-mono-nerd
 
-# Apps
+# Apps (lean: daily-driver only — media via mpv, notes/chat via yay)
 file-roller
-vlc
 gimp
-obsidian
-discord
 
 # Installer (nuit-installer — aesthetic disk installer TUI)
 gum

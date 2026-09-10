@@ -4,11 +4,14 @@
 # Phase 1 (gum TUI): disk, filesystem, swap, LUKS, locale, keymap, timezone,
 #                    user, hostname, summary.
 # Phase 2 (root, non-interactive): partition + format, pacstrap the NuitOS
-#                    package list, chroot theming (skel, plymouth, SDDM,
+#                    package list, chroot theming (skel, plymouth, LightDM,
 #                    systemd-boot, locale, time, user) and clean first boot.
 #
 # UEFI only (systemd-boot). Run `nuit-installer --dry-run` to print the plan
-# without modifying a single byte.
+# without modifying a single byte. GUI frontends:
+# `nuit-installer --unattended FILE [--dry-run]` with a 0600 KEY=VALUE
+# config (contract documented on load_unattended); FILE must contain
+# CONFIRM_WIPE=yes for a real run.
 
 set -euo pipefail
 
@@ -18,17 +21,35 @@ readonly GOOD="#9ece6a"
 readonly BAD="#f7768e"
 
 DRY_RUN=0
-[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
+UNATTENDED=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run) DRY_RUN=1; shift ;;
+    --unattended=*) UNATTENDED="${1#--unattended=}"; shift ;;
+    --unattended)
+      [[ $# -ge 2 ]] || { echo "error: --unattended needs a FILE argument" >&2; exit 1; }
+      UNATTENDED="$2"; shift 2 ;;
+    *) echo "error: unknown argument: $1 (usage: [--dry-run] [--unattended FILE])" >&2; exit 1 ;;
+  esac
+done
 
 # Re-exec as root (live user has NOPASSWD sudo); keep the pretty UI.
 if [[ $DRY_RUN -ne 1 && "$(id -u)" -ne 0 ]]; then
   exec sudo -E "$0" "$@"
 fi
 
-heading() { gum style --padding "0 4" --border rounded --border-foreground "$ACCENT" --foreground "#e0def4" --bold " $1 "; }
-info()    { gum log --time=kitchen --level info "$@"; }
-warn()    { gum log --time=kitchen --level warn "$@"; }
-fail()    { gum log --time=kitchen --level error "$@"; exit 1; }
+# Early firmware gate: the installer is UEFI-only (systemd-boot). Fail here —
+# before a single question — instead of after the full questionnaire.
+if [[ $DRY_RUN -ne 1 && ! -d /sys/firmware/efi ]]; then
+  echo "error: this live session booted in BIOS/Legacy mode." >&2
+  echo "Reboot via your UEFI boot entry (Secure Boot off), then re-run nuit-installer." >&2
+  exit 1
+fi
+
+heading() { if command -v gum >/dev/null 2>&1; then gum style --padding "0 4" --border rounded --border-foreground "$ACCENT" --foreground "#e0def4" --bold " $1 "; else echo "== $1 =="; fi; }
+info()    { if command -v gum >/dev/null 2>&1; then gum log --time=kitchen --level info "$@"; else echo "info: $*"; fi; }
+warn()    { if command -v gum >/dev/null 2>&1; then gum log --time=kitchen --level warn "$@"; else echo "warn: $*" >&2; fi; }
+fail()    { if command -v gum >/dev/null 2>&1; then gum log --time=kitchen --level error "$@"; else echo "error: $*" >&2; fi; exit 1; }
 prompt()  { gum style --foreground "$DIM" " > $1"; }
 need()    { command -v "$1" >/dev/null 2>&1 || fail "required tool not found: $1"; }
 
@@ -40,6 +61,112 @@ done
 part_suffix() {
   [[ "$1" =~ ^(nvme|mmcblk|loop|nbd|pmem|md) ]] && echo p || true
 }
+
+# --- Unattended mode (GUI frontends) ---------------------------------------
+# Contract: 0600 KEY=VALUE file, strict allowlist (never sourced blindly —
+# values may hold spaces, $, backticks). Every rule mirrors the interactive
+# prompts so CLI and GUI accept exactly the same inputs.
+#   DISK_DEV=/dev/sdX | FS=ext4|btrfs | SWAP_G= (empty|0 = none, else 1..128)
+#   LUKS=no|yes | LUKS_PASS=... (12+ chars when yes; the GUI verifies the repeat)
+#   LOCALE="<one of the 10 offered>" | KEYMAP= (empty = us)
+#   TZ= (empty = Etc/UTC) | FULL_NAME= (free, may be empty)
+#   USERNAME=<lowercase regex> | USER_PASS=<6+ chars>
+#   HOSTNAME= (regex, empty = nuitos) | AUTOLOGIN=no|yes
+#   CONFIRM_WIPE=yes (required; anything else aborts before partitioning)
+load_unattended() {
+  local cfg="$1" line key val
+  [[ -f "$cfg" && -r "$cfg" ]] || fail "unattended config not readable: $cfg"
+  [[ "$(stat -c %a "$cfg" 2>/dev/null)" == "600" ]] \
+    || fail "unattended config must be mode 0600 (it holds secrets): $cfg"
+  DISK_DEV=""; FS=""; SWAP_G=""; LUKS=""; LUKS_PASS=""; LOCALE=""
+  KEYMAP=""; TZ=""; FULL_NAME=""; USERNAME=""; USER_PASS=""
+  HOSTNAME=""; AUTOLOGIN=""; CONFIRM_WIPE=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
+    key="${line%%=*}"; val="${line#*=}"
+    case "$key" in
+      DISK_DEV|FS|SWAP_G|LUKS|LUKS_PASS|LOCALE|KEYMAP|TZ|FULL_NAME|USERNAME|USER_PASS|HOSTNAME|AUTOLOGIN|CONFIRM_WIPE)
+        printf -v "$key" '%s' "$val" ;;
+      *) fail "unattended config: unknown key: $key" ;;
+    esac
+  done < "$cfg"
+
+  # Disk: exists, is a whole disk, nothing mounted, not the live media.
+  # (Live-disk is a hard fail here — no one can answer a prompt headless.)
+  [[ -e "$DISK_DEV" ]] || fail "invalid disk path: $DISK_DEV"
+  DISK="$(basename "$DISK_DEV")"
+  DISKS_JSON="$(lsblk -J -o NAME,SIZE,MODEL,TYPE,TRAN,MOUNTPOINTS 2>/dev/null)"
+  DISK_TYPE="$(jq -r '.blockdevices[] | select(.name=="'"$DISK"'") | .type' <<<"$DISKS_JSON")"
+  [[ "$DISK_TYPE" == "disk" ]] || fail "not a whole disk: $DISK_DEV"
+  MNTD="$(jq -r '.blockdevices[] | select(.name=="'"$DISK"'") | (.mountpoints[]?, (.children[]? | .mountpoints[]?)) // empty' <<<"$DISKS_JSON")"
+  [[ -n "$MNTD" ]] && fail "disk $DISK is mounted at $MNTD — unmount first"
+  LIVE_DISK=""
+  for _src in "$(findmnt -no SOURCE / 2>/dev/null | head -1)" \
+             "$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null | head -1)"; do
+    _src="${_src%%\[*}"
+    if [ -n "$_src" ] && [[ "$_src" == /dev/* ]]; then
+      _disk="$(lsblk -no PKNAME "$_src" 2>/dev/null | head -1)"
+      [ -z "$_disk" ] && _disk="${_src#/dev/}"
+      if [ -n "$_disk" ] && [[ "$_disk" != loop* ]] && [[ "$_disk" != overlay ]]; then
+        LIVE_DISK="$_disk"; break
+      fi
+    fi
+  done
+  [[ -n "$LIVE_DISK" && "$DISK" == "$LIVE_DISK" ]] \
+    && fail "refusing: $DISK_DEV is the live media (unattended mode never overrides this)"
+
+  case "$FS" in ext4|btrfs) : ;; *) fail "FS must be ext4|btrfs" ;; esac
+  if [[ -z "${SWAP_G:-}" || "$SWAP_G" == "0" ]]; then SWAP_G=""; fi
+  if [[ -n "${SWAP_G:-}" ]]; then
+    [[ "$SWAP_G" =~ ^[0-9]+$ ]] || fail "SWAP_G must be 0..128"
+    (( SWAP_G > 128 )) && SWAP_G=128
+    (( SWAP_G == 0 )) && SWAP_G=""
+  fi
+  case "${LUKS:-}" in
+    no)  LUKS_OPT="none" ;;
+    yes) LUKS_OPT="full-disk encryption (LUKS2)"
+         [[ ${#LUKS_PASS} -ge 12 ]] || fail "LUKS_PASS too short (min 12 chars)" ;;
+    *) fail "LUKS must be no|yes" ;;
+  esac
+  case "$LOCALE" in
+    "en_US.UTF-8 UTF-8"|"de_DE.UTF-8 UTF-8"|"fr_FR.UTF-8 UTF-8"|"es_ES.UTF-8 UTF-8"|"it_IT.UTF-8 UTF-8"|"pt_BR.UTF-8 UTF-8"|"nl_NL.UTF-8 UTF-8"|"pl_PL.UTF-8 UTF-8"|"ru_RU.UTF-8 UTF-8"|"ja_JP.UTF-8 UTF-8") : ;;
+    *) fail "LOCALE not in the offered list" ;;
+  esac
+  LANG_VAL="${LOCALE%% *}"
+  if [[ -z "${KEYMAP:-}" ]]; then KEYMAP="us"; fi
+  # Strict only when the host can actually enumerate; an empty list means a
+  # broken locale pipe, not a bad keymap (same spirit as the CLI fallback).
+  if _km="$(localectl list-keymaps 2>/dev/null)" && [[ -n "$_km" ]]; then
+    grep -qx "$KEYMAP" <<<"$_km" || fail "KEYMAP unknown: $KEYMAP"
+  fi
+  if [[ -z "${TZ:-}" ]]; then TZ="Etc/UTC"; fi
+  if _tz="$(timedatectl list-timezones 2>/dev/null)" && [[ -n "$_tz" ]]; then
+    grep -qx "$TZ" <<<"$_tz" || fail "TZ unknown: $TZ"
+  fi
+  [[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]*$ ]] || fail "invalid username: $USERNAME"
+  [[ ${#USER_PASS} -ge 6 ]] || fail "USER_PASS too short (min 6 chars)"
+  [[ "$HOSTNAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]] || HOSTNAME="nuitos"
+  case "${AUTOLOGIN:-}" in no|yes) AUTOLOGIN_OPT="$AUTOLOGIN" ;; *) fail "AUTOLOGIN must be no|yes" ;; esac
+  [[ "${CONFIRM_WIPE:-}" == "yes" ]] || fail "wipe not confirmed (CONFIRM_WIPE=yes required)"
+
+  PS="$(part_suffix "$DISK")"
+  P1="${DISK_DEV}${PS}1"
+}
+
+if [[ -n "${UNATTENDED:-}" ]]; then
+  # --- Unattended path: validate, print a plain summary, then Phase 2. ---
+  load_unattended "$UNATTENDED"
+  printf 'SUMMARY (unattended, no changes yet)\n  Disk:     %s\n  FS:       %s  swap=%s  %s\n  Locale:   %s  %s  %s\n  User:     %s (%s)  host=%s\n  Login:    autologin=%s\n' \
+    "$DISK_DEV" "$FS" "${SWAP_G:-off}" "$LUKS_OPT" "$LANG_VAL" "$KEYMAP" "$TZ" \
+    "$USERNAME" "${FULL_NAME:-$USERNAME}" "$HOSTNAME" "$AUTOLOGIN_OPT"
+  if [[ $DRY_RUN -eq 1 ]]; then
+    printf 'PLAN (dry-run, no action taken)\n - sgdisk GPT on %s: %s ESP 512MiB (ef00)\n' "$DISK_DEV" "$P1"
+    [[ -n "${SWAP_G:-}" ]] && printf '   %s swap %sGiB (8200)\n' "${DISK_DEV}${PS}2" "$SWAP_G"
+    printf '   root %s %s\n - mount /mnt -> root, %s -> /mnt/boot\n - pacstrap + payload + chroot (autologin=%s)\n' \
+      "$FS" "$([ "${LUKS:-}" = "yes" ] && echo LUKS2 || echo plain)" "$P1" "$AUTOLOGIN_OPT"
+    exit 0
+  fi
+else
 
 # ---------------------------------------------------------------- Phase 1 ---
 
@@ -160,7 +287,7 @@ HOSTNAME="$(gum input --placeholder "nuitos")"
 [[ "$HOSTNAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]] || HOSTNAME="nuitos"
 
 # --- Autologin (gated, default OFF) ---------------------------------------
-# The live ISO autologins the live user via its own /etc/sddm.conf — that must
+# The live ISO autologins the live user via its own /etc/lightdm/lightdm.conf — that must
 # NOT leak into the installed system. Ask explicitly; default is no autologin.
 prompt "Autologin on boot (skip the login screen)?"
 if gum confirm --prompt.background "#1a1b26" --affirmative "Yes, autologin" --negative "No (ask password)" \
@@ -177,7 +304,7 @@ gum style --padding "0 2" --foreground "#e0def4" \
 ${GOOD}FS:${DIM}       ${FS}  swap=${SWAP_G:-off}  ${LUKS_OPT}
 ${GOOD}Locale:${DIM}   ${LANG_VAL}  ${KEYMAP}  ${TZ}
 ${GOOD}User:${DIM}     ${USERNAME} (${FULL_NAME:-$USERNAME})  host=${HOSTNAME}
-${GOOD}Login:${DIM}    autologin=${AUTOLOGIN_OPT}  theme=gruvbox-minimal-sddm"
+${GOOD}Login:${DIM}    autologin=${AUTOLOGIN_OPT}  greeter=slick (gruvbox)"
 
 gum confirm --prompt.background "#1a1b26" --affirmative "GO" --negative "Abort" \
   "Erase $DISK_DEV and install NuitOS?" || { warn "aborted"; exit 1; }
@@ -189,17 +316,29 @@ if [[ $DRY_RUN -eq 1 ]]; then
    ${SWAP_G:+${DISK_DEV}${PS}2 swap ${SWAP_G}GiB (8200)}  root ${FS} ${LUKS_OPT:+LUKS2}
  - mount /mnt -> root, ${P1} -> /mnt/boot
   - pacstrap -K /mnt  \$(cat /usr/local/share/nuit/pkgs-disk.txt)
-  - payload (live -> /mnt): skel + nuit-* scripts + backgrounds + plymouth/SDDM themes
-  - chroot: plymouth conf + sddm (theme=gruvbox-minimal-sddm, autologin=${AUTOLOGIN_OPT})
+  - payload (live -> /mnt): skel + nuit-* scripts + backgrounds + plymouth/greeter brand
+  - chroot: plymouth conf + lightdm (slick greeter, autologin=${AUTOLOGIN_OPT})
             + locale/time/user/hostname + initramfs + systemd-boot (UEFI)"
   exit 0
 fi
+
+fi # end interactive-only branch (unattended path validated above)
 
 # ---------------------------------------------------------------- Phase 2 ---
 [[ "$(id -u)" -eq 0 ]] || fail "phase 2 must run as root"
 PKG_LIST=/usr/local/share/nuit/pkgs-disk.txt
 [[ -s "$PKG_LIST" ]] || fail "missing package list: $PKG_LIST"
 [[ -d /sys/firmware/efi ]] || fail "UEFI boot required (system not booted in UEFI mode)"
+
+# Cleanup on error/interrupt: never leave /mnt mounted, swap on, or the LUKS
+# mapper open after a partial run. Defined before any destructive step.
+SWAP_PART=""
+cleanup_target() {
+  umount -R /mnt 2>/dev/null || true
+  [[ -n "${SWAP_PART:-}" ]] && swapoff "$SWAP_PART" 2>/dev/null || true
+  [[ "${LUKS_OPT:-}" == *"LUKS2"* ]] && cryptsetup close cryptroot 2>/dev/null || true
+}
+trap cleanup_target EXIT INT TERM
 
 # --- Partition -----------------------------------------------------------
 info "partitioning $DISK_DEV (GPT)"
@@ -289,11 +428,10 @@ mkdir -p /mnt/usr/share/backgrounds
 cp -a /usr/share/backgrounds/. /mnt/usr/share/backgrounds/ 2>/dev/null || true
 mkdir -p /mnt/usr/share/plymouth/themes
 cp -a /usr/share/plymouth/themes/NuitOS/. /mnt/usr/share/plymouth/themes/NuitOS/ 2>/dev/null || true
-mkdir -p /mnt/usr/share/sddm/themes
-# Fatal (no '|| true'): the installer writes Current=gruvbox-minimal-sddm, so a
-# missing theme would leave the installed system with no login screen.
-cp -a /usr/share/sddm/themes/gruvbox-minimal-sddm/. /mnt/usr/share/sddm/themes/gruvbox-minimal-sddm/ \
-  || fail "missing SDDM theme on live image: gruvbox-minimal-sddm"
+# Greeter brand mark referenced by slick-greeter.conf (non-fatal; greeter
+# works without a logo, it just shows no mark).
+mkdir -p /mnt/usr/share/nuit
+cp -a /usr/share/nuit/avatar.png /mnt/usr/share/nuit/avatar.png 2>/dev/null || true
 mkdir -p /mnt/usr/local/share/nuit
 cp -a /usr/local/share/nuit/. /mnt/usr/local/share/nuit/ 2>/dev/null || true
 
@@ -307,10 +445,12 @@ info "configuring system (chroot stage 2)"
 LUKS_HOOK=""; [[ "$LUKS_OPT" == *"LUKS2"* ]] && LUKS_HOOK="encrypt"
 ROOT_LINE="root=UUID=${ROOT_UUID} rw quiet"
 [[ "$LUKS_OPT" == *"LUKS2"* ]] && ROOT_LINE="cryptdevice=UUID=${ROOT_UUID}:cryptroot root=/dev/mapper/cryptroot rw quiet"
-# SDDM autologin block: only written when the user opted in (default off).
-AUTOLOGIN_CONF=""; [[ "$AUTOLOGIN_OPT" == "yes" ]] && AUTOLOGIN_CONF="[Autologin]
-User=${USERNAME}
-Session=hyprland
+# LightDM autologin stanza: only written when the user opted in (default off).
+# The live ISO autologins the live user via its own /etc/lightdm/lightdm.conf
+# — that must NOT leak into the installed system.
+AUTOLOGIN_CONF=""; [[ "$AUTOLOGIN_OPT" == "yes" ]] && AUTOLOGIN_CONF="autologin-user=${USERNAME}
+autologin-user-timeout=0
+autologin-session=hyprland
 "
 
 cat > /mnt/root/nuit-stage2.sh <<'STAGE2'
@@ -322,6 +462,7 @@ set -euo pipefail
 source /root/nuit-stage2.env
 
 NUIT_USER="${NUIT_USER:?missing NUIT_USER}"
+NUIT_FULLNAME="${NUIT_FULLNAME:-$NUIT_USER}"
 NUIT_PASS="${NUIT_PASS:?missing NUIT_PASS}"
 NUIT_HOSTNAME="${NUIT_HOSTNAME:?missing NUIT_HOSTNAME}"
 NUIT_LOCALE="${NUIT_LOCALE:?missing NUIT_LOCALE}"
@@ -332,7 +473,7 @@ NUIT_LUKS_HOOK="${NUIT_LUKS_HOOK:-}"
 NUIT_ROOT_LINE="${NUIT_ROOT_LINE:?missing NUIT_ROOT_LINE}"
 NUIT_AUTOLOGIN_CONF="${NUIT_AUTOLOGIN_CONF:-}"
 
-# (Payload — skel, nuit-* scripts, backgrounds, plymouth + SDDM themes — was
+# (Payload — skel, nuit-* scripts, backgrounds, plymouth + greeter brand — was
 # already copied from the live image to /mnt BEFORE chroot. Do not copy here:
 # inside arch-chroot /etc/skel is the target's own skel, so a copy would be a
 # no-op self-copy.)
@@ -344,14 +485,17 @@ Theme=NuitOS
 ShowDelay=0
 PLY
 
-# SDDM: gruvbox-minimal-sddm theme; autologin only when opted in (default off).
-cat > /etc/sddm.conf <<SDDM
-${NUIT_AUTOLOGIN_CONF}[Theme]
-Current=gruvbox-minimal-sddm
-SDDM
+# LightDM: slick greeter + Hyprland session; autologin only when opted in.
+# (Live autologin lives in the ISO's own lightdm.conf and never leaks here.)
+cat > /etc/lightdm/lightdm.conf <<LIGHTDM
+[Seat:*]
+greeter-session=lightdm-slick-greeter
+user-session=hyprland
+logind-check-graphical=true
+${NUIT_AUTOLOGIN_CONF}LIGHTDM
 
-# Services (sddm + NetworkManager are required for a graphical boot)
-systemctl enable sddm.service
+# Services (lightdm + NetworkManager are required for a graphical boot)
+systemctl enable lightdm.service
 systemctl enable NetworkManager.service
 systemctl enable bluetooth.service || echo "warn: bluetooth.service enable failed" >&2
 systemctl enable power-profiles-daemon.service || echo "warn: power-profiles-daemon.service enable failed" >&2
@@ -380,8 +524,16 @@ hwclock --systohc --utc || echo "warn: hwclock failed (non-fatal in VMs)" >&2
 
 # User (skel dotfiles land automatically) + policy config
 if ! id "${NUIT_USER}" &>/dev/null; then
-  useradd -m -G wheel,audio,video,storage -s /bin/bash "${NUIT_USER}"
+  useradd -m -c "${NUIT_FULLNAME:-${NUIT_USER}}" -G wheel,audio,video,storage -s /bin/bash "${NUIT_USER}"
   echo "${NUIT_USER}:${NUIT_PASS}" | chpasswd
+fi
+# LightDM autologin requires group membership (ArchWiki); only for opt-in.
+# (NUIT_AUTOLOGIN_CONF is empty unless the user chose autologin.)
+# The group ships with no stock package, so ensure it exists first.
+if [[ -n "${NUIT_AUTOLOGIN_CONF:-}" ]]; then
+  getent group autologin >/dev/null || groupadd -r autologin
+  usermod -aG autologin "${NUIT_USER}" 2>/dev/null \
+    || echo "warn: could not add ${NUIT_USER} to autologin group" >&2
 fi
 passwd -l root 2>/dev/null || true
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
@@ -430,6 +582,7 @@ chmod +x /mnt/root/nuit-stage2.sh
 # so passwords never appear in any process command line.
 {
   printf 'NUIT_USER=%q\n' "$USERNAME"
+  printf 'NUIT_FULLNAME=%q\n' "${FULL_NAME:-$USERNAME}"
   printf 'NUIT_PASS=%q\n' "$USER_PASS"
   printf 'NUIT_HOSTNAME=%q\n' "$HOSTNAME"
   printf 'NUIT_LOCALE=%q\n' "$LOCALE"
@@ -446,17 +599,21 @@ gum spin --spinner line --title "stage 2: users, theming, initramfs, bootloader�
 shred -u /mnt/root/nuit-stage2.env /mnt/root/nuit-stage2.sh 2>/dev/null \
   || rm -f /mnt/root/nuit-stage2.env /mnt/root/nuit-stage2.sh
 
+# Persist the pacstrap log on the target for post-install debugging.
+cp -f "$PACSTRAP_LOG" /mnt/var/log/nuit-install.log 2>/dev/null || true
+
 sync
-umount -R /mnt || true
-[[ -n "${SWAP_PART:-}" ]] && swapoff "$SWAP_PART" 2>/dev/null || true
-[[ "$LUKS_OPT" == *"LUKS2"* ]] && cryptsetup close cryptroot || true
+# Success path: run the guarded cleanup exactly once, then disarm the trap so
+# the reboot prompt below can't double-fire it.
+trap - EXIT INT TERM
+cleanup_target
 
 heading "Done"
 gum style --padding "0 2" --foreground "$GOOD" \
 "${GOOD}Nuit OS installed.${DIM}
  - user ${USERNAME} (password sudo, root locked)
  - host ${HOSTNAME} · ${LANG_VAL} · ${KEYMAP} · ${TZ}
-  - ${FS} root ${LUKS_OPT:+· LUKS2 }· systemd-boot · SDDM (autologin ${AUTOLOGIN_OPT})
+  - ${FS} root ${LUKS_OPT:+· LUKS2 }· systemd-boot · LightDM+slick (autologin ${AUTOLOGIN_OPT})
  - remove the installation media, then reboot"
 gum confirm --prompt.background "#1a1b26" --affirmative "Reboot now" --negative "Stay in live session" \
   && systemctl reboot || info "done — reboot anytime with: systemctl reboot"

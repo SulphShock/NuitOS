@@ -47,7 +47,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             size: 20
             source: Theme.icon(root.icon)
-            tint: root.active ? "#1D2021" : Theme.foreground
+            tint: root.active ? Theme.accentText : Theme.foreground
             opacity: root.active ? 1 : 0.85
             Behavior on tint { ColorAnimation { duration: 120 } }
             Behavior on opacity { NumberAnimation { duration: 120 } }
@@ -74,20 +74,20 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             text: root.customGlyph
             horizontalAlignment: Text.AlignHCenter
-            color: root.active ? "#1D2021" : Theme.text
+            color: root.active ? Theme.accentText : Theme.text
             font.pixelSize: 17
         }
         Column {
             anchors.verticalCenter: parent.verticalCenter
             Text {
                 text: root.title
-                color: root.active ? "#1D2021" : Theme.text
+                color: root.active ? Theme.accentText : Theme.text
                 font { family: Theme.fontFamily; pixelSize: Theme.fontPx; bold: true }
             }
             Text {
                 visible: root.subtitle !== ""
                 text: root.subtitle
-                color: root.active ? "#E6EBDBB2" : Theme.dimText
+                color: root.active ? Theme.accentTextDim : Theme.dimText
                 font { family: Theme.fontFamily; pixelSize: Theme.fontPxSmall }
             }
         }

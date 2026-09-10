@@ -2,11 +2,14 @@
 # Runs inside the airootfs chroot at ISO build time (archiso hook).
 set -euo pipefail
 
-# Live user (matches getty/sddm autologin in airootfs/etc). No password +
+# Live user (matches getty/lightdm autologin in airootfs/etc). No password +
 # NOPASSWD sudo is the standard live-CD model: the ISO is ephemeral and runs
 # untrusted only in the VM/USB you boot it on.
 if ! id nuitos &>/dev/null; then
-  useradd -m -G wheel,audio,video,storage -s /bin/bash nuitos
+  # autologin group: LightDM refuses autologin without it (ArchWiki), and no
+  # stock package creates it — so create it first or useradd fails outright.
+  getent group autologin >/dev/null || groupadd -r autologin
+  useradd -m -G wheel,audio,video,storage,autologin -s /bin/bash nuitos
 fi
 passwd -d nuitos
 install -d /etc/sudoers.d

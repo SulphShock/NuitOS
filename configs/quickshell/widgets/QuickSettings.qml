@@ -39,7 +39,7 @@ Rectangle {
         property string icon
         property bool active: false
         signal activated()
-        implicitWidth: 38; implicitHeight: 38; radius: 12
+        implicitWidth: 38; implicitHeight: 38; radius: Theme.radiusMd
         color: ab.active ? Theme.hoverStrong
              : am.pressed ? Theme.hoverStrong
              : am.containsMouse ? Theme.hover : "transparent"
@@ -51,7 +51,7 @@ Rectangle {
             color: Theme.text
             font { family: Theme.fontFamily; pixelSize: 16; bold: true }
         }
-        MouseArea { id: am; anchors.fill: parent; hoverEnabled: true; onClicked: ab.activated() }
+        MouseArea { id: am; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ab.activated() }
     }
 
     // Animated expanding flyout shell (used by the Wi-Fi and Bluetooth rows)
@@ -101,7 +101,7 @@ Rectangle {
         // ── Header ──
         Text {
             Layout.fillWidth: true
-            text: "QuickSettings"
+            text: "Quick Settings"
             color: Theme.text
             font { family: Theme.fontFamily; pixelSize: 15; bold: true }
         }
@@ -154,7 +154,7 @@ Rectangle {
                                     anchors.centerIn: parent
                                     spinning: SysState.wifiScanning
                                 }
-                                MouseArea { anchors.fill: parent; onClicked: SysState.scanWifi() }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: SysState.scanWifi() }
                             }
                         }
                         ListView {
@@ -167,7 +167,7 @@ Rectangle {
                                 required property var modelData
                                 width: ListView.view.width
                                 height: 32
-                                radius: 8
+                                radius: Theme.radiusSm
                                 color: modelData.connected ? Theme.hover : "transparent"
                                 RowLayout {
                                     anchors.fill: parent
@@ -181,7 +181,7 @@ Rectangle {
                                         Text { text: modelData.connected ? "Connected" : modelData.secured ? "Secured network" : "Open network"; color: modelData.connected ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9 } }
                                     }
                                     Text { text: modelData.strength > 75 ? "▂▄▆█" : modelData.strength > 50 ? "▂▄▆" : modelData.strength > 25 ? "▂▄" : "▂"; color: modelData.connected ? Theme.green : Theme.blue; font.pixelSize: 10 }
-                                    MouseArea { anchors.fill: parent; onClicked: { selectedSsid = modelData.ssid; wifiPassword = "" } }
+                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { selectedSsid = modelData.ssid; wifiPassword = "" } }
                                 }
                             }
                         }
@@ -198,15 +198,15 @@ Rectangle {
                             Layout.fillWidth: true
                             visible: selectedSsid !== ""
                             implicitHeight: 30
-                            radius: 10
+                            radius: Theme.radiusSm
                             color: Theme.accent
-                            Text { anchors.centerIn: parent; text: "Connect"; color: "#1D2021"; font.pixelSize: 11; font.bold: true }
-                            MouseArea { anchors.fill: parent; onClicked: { SysState.connectWifi(selectedSsid, wifiPassword); selectedSsid = "" } }
+                            Text { anchors.centerIn: parent; text: "Connect"; color: Theme.accentText; font.pixelSize: 11; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { SysState.connectWifi(selectedSsid, wifiPassword); selectedSsid = "" } }
                         }
                         Text {
                             visible: SysState.wifiError !== ""
                             text: SysState.wifiError
-                            color: "#FB4934"
+                            color: Theme.error
                             font.pixelSize: 10
                         }
                 }
@@ -244,7 +244,7 @@ Rectangle {
                                     spinning: SysState.bluetoothScanning
                                     color: Theme.accent
                                 }
-                                MouseArea { anchors.fill: parent; onClicked: SysState.scanBluetooth() }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: SysState.scanBluetooth() }
                             }
                         }
                         ListView {
@@ -257,7 +257,7 @@ Rectangle {
                                 required property var modelData
                                 width: ListView.view.width
                                 height: 34
-                                radius: 9
+                                radius: Theme.radiusSm
                                 color: btMouse.containsMouse ? Theme.hover : "transparent"
                                 RowLayout {
                                     anchors.fill: parent
@@ -290,7 +290,7 @@ Rectangle {
                         Text {
                             visible: SysState.btError !== ""
                             text: SysState.btError
-                            color: "#FB4934"
+                            color: Theme.error
                             font { family: Theme.fontFamily; pixelSize: 10 }
                         }
                 }
@@ -351,7 +351,7 @@ Rectangle {
                 title: "Power"
                 subtitle: "Session actions"
                 active: true
-                activeColor: "#CC241D"
+                activeColor: Theme.danger
                 onClicked: {
                     powerDialog.visible = true
                     powerDialog.forceActiveFocus()
@@ -416,9 +416,11 @@ Rectangle {
 
     }
 
+    // Shared 4-state volume iconography with TopBar (muted/low/medium/high).
     function volIconName() {
         return SysState.muted || SysState.volume <= 0.01 ? "audio-volume-muted-symbolic"
-             : SysState.volume < 0.5 ? "audio-volume-medium-symbolic"
+             : SysState.volume < 0.33 ? "audio-volume-low-symbolic"
+             : SysState.volume < 0.66 ? "audio-volume-medium-symbolic"
              : "audio-volume-high-symbolic"
     }
 
@@ -471,10 +473,10 @@ Rectangle {
             Text {
                 anchors.centerIn: parent
                 text: db.label
-                color: db.accent ? "#1D2021" : Theme.text
+                color: db.accent ? Theme.accentText : Theme.text
                 font { family: Theme.fontFamily; pixelSize: 13; bold: true }
             }
-            MouseArea { id: dma; anchors.fill: parent; hoverEnabled: true; onClicked: db.activated() }
+            MouseArea { id: dma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: db.activated() }
         }
         Column {
             anchors.centerIn: parent

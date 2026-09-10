@@ -41,7 +41,7 @@ Rectangle {
         Text {
             anchors.centerIn: parent
             text: rb.label
-            color: rb.accent ? "#1D2021" : Theme.text
+            color: rb.accent ? Theme.accentText : Theme.text
             font { family: Theme.fontFamily; pixelSize: 11; bold: true }
         }
         MouseArea { id: rma; anchors.fill: parent; hoverEnabled: true; onClicked: rb.activated() }
@@ -110,8 +110,8 @@ Rectangle {
                     Rectangle {
                         Layout.preferredWidth: 26
                         Layout.preferredHeight: 26
-                        radius: 8
-                        color: delMa.containsMouse ? "#CC241D" : "transparent"
+                        radius: Theme.radiusSm
+                        color: delMa.containsMouse ? Theme.danger : "transparent"
                         Text { anchors.centerIn: parent; text: "✕"; color: Theme.text; font.pixelSize: 11 }
                         MouseArea {
                             id: delMa
@@ -168,7 +168,7 @@ Rectangle {
         Text {
             visible: panel.error !== ""
             text: panel.error
-            color: "#FB4934"
+            color: Theme.error
             font { family: Theme.fontFamily; pixelSize: 10 }
         }
         Text {

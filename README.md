@@ -12,7 +12,7 @@ A bootable, day-one desktop: tiling window manager, system topbar, app launcher,
 - **Hyprland** — Tiling window manager configured for daily use
 - **QuickShell topbar** — D-Bus integrated status bar with quick settings, calendar, notifications
 - **App launcher** — in-shell Activities grid (Super+Space)
-- **Gruvbox-dark login** — `gruvbox-minimal-sddm` theme matching the desktop palette
+- **Gruvbox-dark login** — LightDM + slick-greeter in gruvbox-dark, matching the desktop
 - **Curated packages** — Daily-use apps preinstalled (terminal, browser, editor, media); extend via `yay`
 - **CLI utilities** — Quick wrappers for common tasks
 - **Reproducible builds** — Pure archiso profile in `iso/`
@@ -69,7 +69,7 @@ From the live session, run:
 nuit-installer
 ```
 
-It asks for disk, filesystem (ext4/btrfs), swap, LUKS2 encryption, locale/keymap/timezone, user, hostname, and whether to enable **autologin** (default: off — you log in with your password at the gruvbox SDDM screen). Use `nuit-installer --dry-run` to preview the plan without touching the disk.
+It asks for disk, filesystem (ext4/btrfs), swap, LUKS2 encryption, locale/keymap/timezone, user, hostname, and whether to enable **autologin** (default: off — you log in with your password at the gruvbox slick-greeter screen). Use `nuit-installer --dry-run` to preview the plan without touching the disk.
 
 ---
 
@@ -89,7 +89,7 @@ NuitOS/
     └── airootfs/         # Files bundled into ISO
         ├── etc/skel/     # Default user dotfiles (hypr, quickshell, nvim, …)
         ├── usr/local/bin/# nuit-installer + nuit-* helpers
-        └── usr/share/    # backgrounds, plymouth + SDDM themes
+        └── usr/share/    # backgrounds, plymouth theme, greeter brand
 ```
 
 ---
@@ -171,7 +171,7 @@ sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 **Fonts:**
 - JetBrains Mono Nerd Font (terminal + UI face — the only coding font shipped)
 
-**Also ships:** `firefox`, `vlc`, `gimp`, `obsidian`, `discord`, `file-roller` — a bootable, day-one desktop. Add anything else with AUR via `yay`.
+**Also ships:** `firefox`, `gimp`, `file-roller` — a bootable, day-one desktop. Media plays via `mpv`; notes, chat, and anything else via `yay`.
 
 **Developers:** the ISO ships `base-devel` (C toolchain) but not `nodejs`/`npm`/`cmake` — install them post-setup with `yay -S nodejs npm cmake` if your editor plugins need them.
 
@@ -251,7 +251,7 @@ MIT. See `LICENSE`.
 - [Arch Linux](https://archlinux.org)
 - [Hyprland Docs](https://hyprland.org)
 - [QuickShell](https://github.com/outfoxxed/quickshell)
-- [gruvbox-minimal-sddm](https://github.com/scientiac/gruvbox-minimal-sddm) (MIT login theme, vendored + tuned)
+- [slick-greeter](https://github.com/linuxmint/slick-greeter) (LightDM greeter, gruvbox config)
 
 ---
 

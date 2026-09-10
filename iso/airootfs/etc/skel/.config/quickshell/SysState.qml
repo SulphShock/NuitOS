@@ -237,6 +237,8 @@ Singleton {
     property real brightness: 0.7
     property int blMax: 1
     property string blDevice: ""
+    // False on VMs / desktops without a backlight: TopBar hides the tile.
+    readonly property bool hasBacklight: blDevice !== ""
     Process {
         id: blProbe
         command: ["brightnessctl", "-m"]   // name,class,cur,pct,max

@@ -1,11 +1,11 @@
 # Nuit OS plymouth splash — "moonrise"
-# Tokyo-Night sky: faint orbit ring around the brand mark with a glowing moon,
+# Gruvbox-hard sky: faint orbit ring around the brand mark with a glowing moon,
 # twinkling stars, a wide-set wordmark and a chase-dots boot indicator.
 
-# Palette
-# #16161e -> #24203a
-Window.SetBackgroundTopColor(0.086, 0.086, 0.118);
-Window.SetBackgroundBottomColor(0.141, 0.125, 0.227);
+# Palette (gruvbox-dark-hard: bg-deep #1D2021 -> base #282828)
+# #1D2021 -> #282828
+Window.SetBackgroundTopColor(0.114, 0.129, 0.129);
+Window.SetBackgroundBottomColor(0.157, 0.157, 0.157);
 
 ring.image = Image("ring.png");
 moon.image = Image("moon.png");

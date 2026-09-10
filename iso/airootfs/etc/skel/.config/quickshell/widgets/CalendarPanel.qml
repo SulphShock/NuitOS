@@ -70,7 +70,7 @@ Rectangle {
         implicitWidth: 30; implicitHeight: 30; radius: 15
         color: nma.containsMouse ? Theme.hover : "transparent"
         Text { anchors.centerIn: parent; text: nb.glyph; color: Theme.text; font.pixelSize: 15 }
-        MouseArea { id: nma; anchors.fill: parent; hoverEnabled: true; onClicked: nb.activated() }
+        MouseArea { id: nma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: nb.activated() }
     }
 
     RowLayout {
@@ -98,18 +98,21 @@ Rectangle {
                 Rectangle {   // Do Not Disturb
                     width: dndRow.implicitWidth + 20
                     height: 28; radius: 14
-                    color: SysState.dnd ? Theme.accent : Theme.inactiveBg
+                    color: SysState.dnd ? (dndMa.containsMouse ? Theme.hoverStrong : Theme.accent)
+                                        : (dndMa.containsMouse ? Theme.hover : Theme.inactiveBg)
                     Row {
                         id: dndRow
                         anchors.centerIn: parent
                         Text {
                             text: "Do Not Disturb"
-                            color: SysState.dnd ? "#1D2021" : Theme.text
+                            color: SysState.dnd ? Theme.accentText : Theme.text
                             font { family: Theme.fontFamily; pixelSize: 12 }
                         }
                     }
                     MouseArea {
+                        id: dndMa
                         anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: SysState.dnd = !SysState.dnd
                     }
@@ -124,7 +127,7 @@ Rectangle {
                         color: Theme.text
                         font { family: Theme.fontFamily; pixelSize: 12 }
                     }
-                    MouseArea { id: clearMa; anchors.fill: parent; onClicked: SysState.clearNotifications() }
+                    MouseArea { id: clearMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: SysState.clearNotifications() }
                 }
             }
 
@@ -160,7 +163,7 @@ Rectangle {
                         required property var modelData
                         width: ListView.view.width
                         height: nd.implicitHeight + 20
-                        radius: 12
+                        radius: Theme.radiusMd
                         color: Theme.inactiveBg
                         Column {
                             id: nd
@@ -177,11 +180,14 @@ Rectangle {
                                 }
                                 Text {
                                     text: "✕"
-                                    color: Theme.dimText
-                                    font.pixelSize: 11
+                                    color: dismissMa.containsMouse ? Theme.error : Theme.dimText
+                                    font.pixelSize: 13
                                     MouseArea {
+                                        id: dismissMa
                                         anchors.fill: parent
+                                        anchors.margins: -6
                                         hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
                                         onClicked: SysState.dismissNotification(modelData)
                                     }
                                 }
@@ -258,14 +264,15 @@ Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 44
                         radius: 22
+                        // today > selected > hover: accent, strong hover, hover.
                         color: modelData.isToday ? Theme.accent
-                             : modelData.isSelected ? Theme.hover
-                             : dayMa.containsMouse ? "#22EBDBB2" : "transparent"
+                             : modelData.isSelected ? Theme.hoverStrong
+                             : dayMa.containsMouse ? Theme.hover : "transparent"
                         Text {
                             anchors.centerIn: parent
                             text: dayCell.modelData.day
-                            color: dayCell.modelData.isToday ? "#FBF1C7"
-                                 : dayCell.modelData.inMonth ? Theme.text : "#55EBDBB2"
+                            color: dayCell.modelData.isToday ? Theme.fgBright
+                                 : dayCell.modelData.inMonth ? Theme.text : Theme.ghostText
                             font { family: Theme.fontFamily; pixelSize: 12; bold: dayCell.modelData.isToday }
                         }
                         MouseArea {

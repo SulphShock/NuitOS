@@ -54,19 +54,26 @@ PanelWindow {
         + "%" + (SysState.charging ? "+" : "")
     readonly property string battIcon: {
         const p = Math.max(0, Math.min(100, SysState.batteryPct))
-        const lvl = Math.round(p / 10) * 10
-        if (lvl >= 100 && SysState.charging) return "battery-level-100-charged-symbolic"
+        // Adwaita ships battery-level-{20..100} (+charging); low charge
+        // gets the dedicated caution glyph instead of a missing level.
+        if (p <= 10) return "battery-caution-symbolic"
+        const lvl = Math.min(100, Math.max(20, Math.round(p / 10) * 10))
         return "battery-level-" + lvl
             + (SysState.charging ? "-charging" : "") + "-symbolic"
     }
     property int workspaceRevision: 0
+    // GNOME-style dynamic strip: always 1..5, extends to the highest live
+    // workspace, capped at 10 to match the Super+1..0 binds. No dead buttons.
     readonly property var workspaceIds: {
         workspaceRevision
-        const ids = [1, 2, 3, 4, 5]
+        let top = 5
         for (const workspace of (Hyprland.workspaces?.values ?? [])) {
-            if (workspace.id > 5) ids.push(workspace.id)
+            if (workspace.id > top) top = workspace.id
         }
-        return [...new Set(ids)].sort((a, b) => a - b)
+        top = Math.min(10, top)
+        const ids = []
+        for (let i = 1; i <= top; i++) ids.push(i)
+        return ids
     }
     Connections {
         target: Hyprland
@@ -121,7 +128,7 @@ PanelWindow {
         signal wheelAdjusted(int direction)
         width: 18; height: 18; radius: 9
         color: mouse.containsMouse
-            ? (statusPill.color === Theme.accent ? "#40EBDBB2" : Theme.hover)
+            ? (statusPill.color === Theme.accent ? Theme.hoverStrong : Theme.hover)
             : "transparent"
         Behavior on color { ColorAnimation { duration: 100 } }
         WhiteIcon {
@@ -153,7 +160,7 @@ PanelWindow {
         Rectangle {
             width: 20
             height: 20
-            radius: 6
+            radius: Theme.radiusSm
             color: logoMouse.containsMouse || SysState.actOpen ? Theme.hover : "transparent"
             Behavior on color { ColorAnimation { duration: 100 } }
             Image {
@@ -197,14 +204,14 @@ PanelWindow {
                     readonly property bool occupied: (workspace?.toplevels?.values?.length ?? 0) > 0
                     width: 18
                     height: 18
-                    radius: 5
+                    radius: 9
                     color: Hyprland.focusedWorkspace?.id === modelData ? Theme.accent
                         : workspaceMouse.containsMouse ? Theme.hover : "transparent"
                     Behavior on color { ColorAnimation { duration: 100 } }
                     Text {
                         anchors.centerIn: parent
                         text: modelData
-                        color: Hyprland.focusedWorkspace?.id === modelData ? "#1D2021" : Theme.dimText
+                        color: Hyprland.focusedWorkspace?.id === modelData ? Theme.accentText : Theme.dimText
                         font { family: Theme.fontFamily; pixelSize: 10; bold: true }
                     }
                     Rectangle {
@@ -213,7 +220,7 @@ PanelWindow {
                         width: 8
                         height: 2
                         radius: 1
-                        color: Hyprland.focusedWorkspace?.id === modelData ? "#1D2021" : Theme.foreground
+                        color: Hyprland.focusedWorkspace?.id === modelData ? Theme.accentText : Theme.foreground
                     }
                     MouseArea {
                         id: workspaceMouse
@@ -232,15 +239,33 @@ PanelWindow {
             }
         }
         }
+
+        // GNOME app-name pattern: focused window title, fixed slot so the
+        // bar geometry never jumps; collapses when the desktop is empty.
+        Item {
+            anchors.verticalCenter: parent.verticalCenter
+            width: appTitle.text === "" ? 0 : 220
+            visible: appTitle.text !== ""
+            clip: true
+            Text {
+                id: appTitle
+                width: 220
+                text: Hyprland.activeToplevel?.title ?? ""
+                elide: Text.ElideRight
+                maximumLineCount: 1
+                color: Theme.dimText
+                font { family: Theme.fontFamily; pixelSize: 11 }
+            }
+        }
     }
 
-    // ── CENTER: 12-hour clock ──
+    // ── CENTER: clock + date (GNOME parity) ──
     PillButton {
         id: clockPill
         property string timeText: {
             SysState.clock.seconds          // per-second refresh dependency
             const d = new Date()
-            return Qt.formatTime(d, "h:mm AP")
+            return Qt.formatDate(d, "ddd MMM d  ") + Qt.formatTime(d, "h:mm AP")
         }
         anchors { horizontalCenter: parent.horizontalCenter; verticalCenter: parent.verticalCenter }
         label: timeText
@@ -262,6 +287,8 @@ PanelWindow {
         MouseArea {
             id: statusMouse
             anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
             onClicked: SysState.toggleQs()
         }
 
@@ -270,11 +297,15 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: 2
 
-            // Network — click to open Quick Settings
+            // Network — click to open Quick Settings.
+            // Dim when offline entirely (no SSID and no wire) so the
+            // radio-on-but-disconnected state reads differently from Off.
             StatusIcon {
                 id: netBtn
                 source: Theme.icon(bar.netIcon)
-                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
+                tint: (SysState.wifiSsid === "" && !SysState.wired)
+                    ? Theme.dimText
+                    : (statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground)
                 onClicked: SysState.toggleQs()
                 Connections {
                     target: SysState
@@ -288,7 +319,7 @@ PanelWindow {
             StatusIcon {
                 id: volBtn
                 source: Theme.icon(bar.volIcon)
-                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground
                 onClicked: SysState.toggleMute()
                 onWheelAdjusted: direction => SysState.setVolume(SysState.volume + direction * 0.05)
                 Connections {
@@ -301,7 +332,7 @@ PanelWindow {
             StatusIcon {
                 id: battBtn
                 source: Theme.icon(bar.battIcon)
-                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground
                 onClicked: SysState.toggleQs()
                 Connections {
                     target: SysState
@@ -309,11 +340,13 @@ PanelWindow {
                 }
             }
 
-            // Brightness — scroll to adjust, click opens Quick Settings slider
+            // Brightness — scroll to adjust, click opens Quick Settings slider.
+            // Hidden where no backlight device exists (VMs, some desktops).
             StatusIcon {
                 id: briBtn
+                visible: SysState.hasBacklight
                 source: Theme.icon("display-brightness-symbolic")
-                tint: statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground
+                tint: statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground
                 onClicked: SysState.toggleQs()
                 onWheelAdjusted: direction => SysState.setBrightness(SysState.brightness + direction * 0.05)
                 Connections {
@@ -327,8 +360,8 @@ PanelWindow {
                 id: remBtn
                 source: Theme.icon("alarm-symbolic")
                 tint: SysState.reminders.length > 0
-                    ? (statusPill.color === Theme.accent ? "#1D2021" : Theme.accent)
-                    : (statusPill.color === Theme.accent ? "#1D2021" : Theme.foreground)
+                    ? (statusPill.color === Theme.accent ? Theme.accentText : Theme.accent)
+                    : (statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground)
                 onClicked: SysState.toggleReminders()
                 Connections {
                     target: SysState

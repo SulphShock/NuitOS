@@ -74,9 +74,9 @@ thunar-archive-plugin
 tumbler
 shared-mime-info
 firefox
-sddm
+lightdm
+lightdm-slick-greeter
 qt6-declarative
-qt6-5compat
 qt5ct
 qt6ct
 kvantum
@@ -95,10 +95,7 @@ make
 pkgconf
 ttf-jetbrains-mono-nerd
 file-roller
-vlc
 gimp
-obsidian
-discord
 gum
 gptfdisk
 parted
