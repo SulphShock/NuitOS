@@ -104,7 +104,7 @@ case "$CHOICE" in
   "Open screenshots folder")
     DIR="${NUIT_SCREENSHOT_DIR:-$HOME/Pictures}"
     mkdir -p "$DIR"
-    if command -v nautilus >/dev/null 2>&1; then exec nautilus "$DIR" >/dev/null 2>&1 &
+    if command -v thunar >/dev/null 2>&1; then exec thunar "$DIR" >/dev/null 2>&1 &
     else exec xdg-open "$DIR" >/dev/null 2>&1 & fi
     ;;
   *) exit 0 ;;  # dismissed

@@ -5,8 +5,8 @@ set -euo pipefail
 THEME="${NUIT_THEME:-default}"
 BG_DIR="$HOME/.config/nuit/backgrounds/$THEME"
 mkdir -p "$BG_DIR"
-if command -v nautilus >/dev/null 2>&1; then
-  nautilus "$BG_DIR" >/dev/null 2>&1 &
+if command -v thunar >/dev/null 2>&1; then
+  thunar "$BG_DIR" >/dev/null 2>&1 &
 elif command -v xdg-open >/dev/null 2>&1; then
   xdg-open "$BG_DIR" >/dev/null 2>&1 &
 else

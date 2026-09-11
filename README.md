@@ -29,7 +29,7 @@ You don't need Linux installed to try NuitOS — but you do need a USB stick (4 
 2. **Flash it to the USB stick** with [balenaEtcher](https://etcher.balena.io/) (Windows/macOS/Linux): open Etcher → *Flash from file* → pick the ISO → *Select target* → pick your USB stick → *Flash!*. This erases the stick.
 3. **Turn off Secure Boot** in your BIOS/UEFI settings (NuitOS, like stock Arch, won't boot with it on). Common keys to enter setup: <kbd>Del</kbd>, <kbd>F2</kbd>, <kbd>F10</kbd>, <kbd>Esc</kbd>.
 4. **Boot from the stick**: plug it in, restart, and press your boot-menu key (<kbd>F12</kbd>, <kbd>F8</kbd>, or <kbd>Esc</kbd> on most machines) → select the USB device.
-5. **What you'll see**: a login screen that logs you in by itself, then an empty desktop with a top bar and a wallpaper. Nothing is broken — it's a tiling desktop, and it's waiting for you:
+5. **What you'll see**: straight into an empty desktop with a top bar and a wallpaper — no login screen when trying the OS. Nothing is broken — it's a tiling desktop, and it's waiting for you:
    - <kbd>Super</kbd> (= Windows key) + <kbd>Space</kbd> → app grid (find the **Nuit OS Installer** here)
    - <kbd>Super</kbd> + <kbd>Return</kbd> → terminal
    - <kbd>Super</kbd> + <kbd>F1</kbd> → full key list

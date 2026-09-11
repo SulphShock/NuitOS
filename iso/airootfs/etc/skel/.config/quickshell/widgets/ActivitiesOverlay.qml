@@ -11,7 +11,8 @@ Rectangle {
     property int selectedIndex: 0
 
     // ── Entries hidden on request: avahi utils, xgps utils,
-    // hardware locality (lstopo), Volume Control ──
+    // hardware locality (lstopo), Volume Control, Thunar helpers
+    // (keep only the main Thunar entry) ──
     // NOTE: the Nuit OS Installer is intentionally VISIBLE (it is the disk
     // installer; README + keybinds sheet point users at the app grid).
     // Matched case-insensitively against the desktop id + display name.
@@ -21,7 +22,9 @@ Rectangle {
         "xgps",                // xgps + xgpsspeed
         "v4l2", "qv4l2", "qvidcap", // Qt V4L2 test + video capture utilities
         "lstopo", "hardware locality",
-        "pavucontrol", "volume control"
+        "pavucontrol", "volume control",
+        "bulk-rename", "bulk rename",
+        "thunar-settings", "thunar-volman", "volman"
     ]
 
     function isHidden(entry) {

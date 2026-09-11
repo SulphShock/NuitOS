@@ -20,7 +20,7 @@ ShellRoot {
             // ── Popup layer (Quick Settings + Calendar + Reminders) with click-away scrim ──
             PanelWindow {
                 screen: scr.modelData
-                visible: SysState.qsOpen || SysState.calOpen || SysState.settingsOpen || SysState.remOpen
+                visible: SysState.qsOpen || SysState.calOpen || SysState.settingsOpen || SysState.remOpen || SysState.btOpen || SysState.wifiOpen
                 anchors { top: true; bottom: true; left: true; right: true }
                 exclusionMode: ExclusionMode.Ignore
                 color: "transparent"
@@ -50,6 +50,16 @@ ShellRoot {
                     anchors { top: parent.top; right: parent.right
                               topMargin: Theme.barHeight + 8; rightMargin: 8 }
                 }
+                BluetoothPanel {
+                    visible: SysState.btOpen
+                    anchors { top: parent.top; right: parent.right
+                              topMargin: Theme.barHeight + 8; rightMargin: 8 }
+                }
+                WifiPanel {
+                    visible: SysState.wifiOpen
+                    anchors { top: parent.top; right: parent.right
+                              topMargin: Theme.barHeight + 8; rightMargin: 8 }
+                }
             }
 
             // ── Activities overlay (modal, keyboard capture) ──
@@ -64,6 +74,19 @@ ShellRoot {
                 WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
                 ActivitiesOverlay { anchors.fill: parent }
             }
+
+            // ── First-run welcome (modal, once per user, no click-away) ──
+            PanelWindow {
+                screen: scr.modelData
+                visible: SysState.welcomeOpen
+                anchors { top: true; bottom: true; left: true; right: true }
+                exclusionMode: ExclusionMode.Ignore
+                color: "transparent"
+                WlrLayershell.layer: WlrLayer.Overlay
+                WlrLayershell.namespace: "quickshell:gnome-welcome"
+                WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+                WelcomePanel { anchors.centerIn: parent }
+            }
         }
     }
 
@@ -75,6 +98,8 @@ ShellRoot {
         function toggleActivities(): void    { SysState.toggleActivities() }
         function toggleSettings(): void      { SysState.toggleSettings() }
         function toggleReminders(): void     { SysState.toggleReminders() }
+        function toggleBluetooth(): void     { SysState.toggleBluetooth() }
+        function toggleWifi(): void          { SysState.toggleWifi() }
         function setBright(v: real): void    { SysState.setBrightness(v) }
     }
 }

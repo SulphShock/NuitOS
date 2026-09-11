@@ -16,13 +16,39 @@ Singleton {
     property bool actOpen: false
     property bool settingsOpen: false
     property bool remOpen: false
+    property bool btOpen: false
+    property bool wifiOpen: false
     property string username: "user"
-    function closeAll() { qsOpen = calOpen = actOpen = settingsOpen = remOpen = false }
-    function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
+    function closeAll() { qsOpen = calOpen = actOpen = settingsOpen = remOpen = btOpen = wifiOpen = false }    function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
     function toggleCalendar()   { const v = calOpen;   closeAll(); calOpen   = !v }
     function toggleActivities() { const v = actOpen;   closeAll(); actOpen   = !v }
     function toggleSettings()   { const v = settingsOpen; closeAll(); settingsOpen = !v }
-    function toggleReminders()  { const v = remOpen;    closeAll(); remOpen   = !v }
+    function toggleReminders()  { const v = remOpen;    closeAll(); remOpen    = !v }
+    function toggleBluetooth()  { const v = btOpen;    closeAll(); btOpen    = !v }
+    function toggleWifi()       { const v = wifiOpen;  closeAll(); wifiOpen  = !v }
+
+    // ─────────────────── First-run welcome (once per user) ───────────────────
+    // Shown 5s after shell start when ~/.config/nuit/.welcomed is absent.
+    // Dismissed only explicitly (button or Escape) so a click-away can't
+    // silently skip it — and skipping never marks it seen.
+    property bool welcomeOpen: false
+    readonly property string welcomedFile: (Quickshell.env("HOME") || ("/home/" + root.username)) + "/.config/nuit/.welcomed"
+    Process {
+        id: welcomeCheck
+        command: ["test", "-f", root.welcomedFile]
+        onExited: code => { if (code !== 0) welcomeTimer.restart() }
+        Component.onCompleted: welcomeCheck.running = true
+    }
+    Timer {
+        id: welcomeTimer
+        interval: 5000
+        repeat: false
+        onTriggered: root.welcomeOpen = true
+    }
+    function dismissWelcome() {
+        runCmd(["sh", "-c", "mkdir -p ~/.config/nuit && touch ~/.config/nuit/.welcomed"])
+        welcomeOpen = false
+    }
 
     readonly property SystemClock clock: SystemClock { precision: SystemClock.Seconds }
 
@@ -174,11 +200,17 @@ Singleton {
 
     // ─────────────────────────── Bluetooth (bluetoothctl) ───────────────────────────
     property bool btPowered: false
-    property var btDevices: []
+    property var btDevices: []            // every known device {address, name}
+    property var btConnected: []          // known + connected
+    property var btPaired: []             // paired but not connected
+    property var btAvailable: []          // discovered, never paired
     property var btConnectedAddresses: []
+    property var btPairedAddresses: []
     property string btError: ""
     property bool bluetoothScanning: false
+    property string btPendingPair: ""
     function refreshBt() { btShow.running = true }
+    function refreshBtLists() { btScan.running = true; btConnectedScan.running = true; btPairedScan.running = true }
     Process {
         id: btShow
         command: ["bluetoothctl", "show"]
@@ -189,25 +221,72 @@ Singleton {
         btSet.command = ["bluetoothctl", "power", on ? "on" : "off"]
         btSet.running = true
     }
-    function scanBluetooth() { btError = ""; bluetoothScanning = true; btScan.running = true; btConnectedScan.running = true }
+    function scanBluetooth() {
+        btError = ""
+        bluetoothScanning = true
+        btDiscover.running = true   // timed discovery, then the three list scans
+    }
+    function rebuildBt() {
+        // Split every known device by its address membership. Names come
+        // from the full device list; paired/connected scans give addresses.
+        const connected = [], paired = [], available = []
+        for (const d of btDevices) {
+            if (btConnectedAddresses.indexOf(d.address) >= 0)
+                connected.push({ address: d.address, name: d.name, action: "disconnect" })
+            else if (btPairedAddresses.indexOf(d.address) >= 0)
+                paired.push({ address: d.address, name: d.name, action: "connect" })
+            else
+                available.push({ address: d.address, name: d.name, action: "pair" })
+        }
+        root.btConnected = connected
+        root.btPaired = paired
+        root.btAvailable = available
+    }
+    function btAction(address, action) {
+        btError = ""
+        if (action === "disconnect") {
+            btDisconnect.command = ["bluetoothctl", "disconnect", address]
+            btDisconnect.running = true
+        } else if (action === "pair") {
+            btPendingPair = address
+            btPair.command = ["bluetoothctl", "pair", address]
+            btPair.running = true
+        } else {
+            connectBluetooth(address)
+        }
+    }
     function connectBluetooth(address) {
         btError = ""
         btConnect.command = ["bluetoothctl", "connect", address]
         btConnect.running = true
     }
+    function parseBtDevices(text) {
+        const found = []
+        for (const line of text.trim().split("\n")) {
+            const parts = line.trim().split(" ")
+            if (parts.length >= 3 && parts[0] === "Device")
+                found.push({ address: parts[1], name: parts.slice(2).join(" ") })
+        }
+        return found
+    }
+    function parseBtAddresses(text) {
+        const addresses = []
+        for (const line of text.trim().split("\n")) {
+            const parts = line.trim().split(" ")
+            if (parts.length >= 2 && parts[0] === "Device") addresses.push(parts[1])
+        }
+        return addresses
+    }
+    Process {
+        id: btDiscover
+        command: ["bluetoothctl", "--timeout", "8", "scan", "on"]
+        onExited: root.refreshBtLists()
+    }
     Process {
         id: btScan
         command: ["bluetoothctl", "devices"]
         stdout: StdioCollector {
-            onStreamFinished: {
-                const found = []
-                for (const line of text.trim().split("\n")) {
-                    const parts = line.trim().split(" ")
-                    if (parts.length >= 3 && parts[0] === "Device")
-                        found.push({ address: parts[1], name: parts.slice(2).join(" ") })
-                }
-                root.btDevices = found
-            }
+            onStreamFinished: { root.btDevices = parseBtDevices(text); root.rebuildBt() }
         }
         onExited: exitCode => { root.bluetoothScanning = false; if (exitCode !== 0) root.btError = "Unable to scan Bluetooth devices" }
     }
@@ -215,21 +294,48 @@ Singleton {
         id: btConnectedScan
         command: ["bluetoothctl", "devices", "Connected"]
         stdout: StdioCollector {
-            onStreamFinished: {
-                const addresses = []
-                for (const line of text.trim().split("\n")) {
-                    const parts = line.trim().split(" ")
-                    if (parts.length >= 2 && parts[0] === "Device") addresses.push(parts[1])
-                }
-                root.btConnectedAddresses = addresses
-            }
+            onStreamFinished: { root.btConnectedAddresses = parseBtAddresses(text); root.rebuildBt() }
+        }
+    }
+    Process {
+        id: btPairedScan
+        command: ["bluetoothctl", "devices", "Paired"]
+        stdout: StdioCollector {
+            onStreamFinished: { root.btPairedAddresses = parseBtAddresses(text); root.rebuildBt() }
         }
     }
     Process {
         id: btConnect
         onExited: exitCode => {
             if (exitCode !== 0) root.btError = "Could not connect to that device"
-            else root.refreshBt()
+            root.refreshBtLists()
+        }
+    }
+    Process {
+        id: btDisconnect
+        onExited: exitCode => {
+            if (exitCode !== 0) root.btError = "Could not disconnect that device"
+            root.refreshBtLists()
+        }
+    }
+    Process {
+        id: btPair
+        onExited: exitCode => {
+            if (exitCode !== 0) { root.btError = "Pairing failed — keep the device discoverable"; root.btPendingPair = "" }
+            else {
+                btTrust.command = ["bluetoothctl", "trust", root.btPendingPair]
+                btTrust.running = true
+            }
+        }
+    }
+    Process {
+        id: btTrust
+        onExited: exitCode => {
+            const addr = root.btPendingPair
+            root.btPendingPair = ""
+            if (exitCode !== 0) root.btError = "Paired, but trust failed"
+            else if (addr) connectBluetooth(addr)
+            root.refreshBtLists()
         }
     }
 

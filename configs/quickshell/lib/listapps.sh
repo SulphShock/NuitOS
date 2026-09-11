@@ -6,9 +6,10 @@
 APP_DIRS="$HOME/.local/share/applications /usr/local/share/applications /usr/share/applications /var/lib/flatpak/exports/share/applications $HOME/.local/share/flatpak/exports/share/applications"
 
 # Hidden on request: avahi utils, xgps utils, hardware locality (lstopo),
-# Volume Control. Matched against the .desktop basename + Name.
+# Volume Control, Thunar helpers (keep only the main Thunar entry).
+# Matched against the .desktop basename + Name.
 # (The Nuit OS Installer is intentionally VISIBLE — it is the disk installer.)
-HIDDEN="avahi|bssh|bvnc|xgps|v4l2|qv4l2|qvidcap|lstopo|hardware locality|pavucontrol|volume control"
+HIDDEN="avahi|bssh|bvnc|xgps|v4l2|qv4l2|qvidcap|lstopo|hardware locality|pavucontrol|volume control|bulk.?rename|thunar.*settings|volman"
 
 resolve_icon() {
     local name="$1"

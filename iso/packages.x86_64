@@ -2,14 +2,8 @@
 base
 linux
 linux-firmware
-systemd
-systemd-sysvcompat
-efibootmgr
-intel-ucode
-amd-ucode
 syslinux
 mkinitcpio-archiso
-plymouth
 nano
 vim
 git
@@ -18,22 +12,17 @@ bash-completion
 networkmanager
 network-manager-applet
 openssh
-ufw
 rsync
 wget
 curl
 htop
 tmux
-procps-ng
+fastfetch
 unzip
 man-db
 man-pages
-
-# Power (QuickShell's Quick Settings controls profiles via power-profiles-daemon;
-# battery widget talks to UPower)
-power-profiles-daemon
-upower
-gammastep
+tlp
+reflector
 
 # Display server
 xorg-server
@@ -46,32 +35,16 @@ xorg-xwayland
 hyprland
 hyprpaper
 hypridle
-hyprlock
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-wlr
 xdg-utils
-# Desktop shell (QuickShell — bar, launcher, notifications, control center)
-quickshell
-qt6-svg
-qt6-imageformats
-hyprpicker
+mako
+swaylock
 grim
 slurp
-gpu-screen-recorder
 wl-clipboard
 brightnessctl
-# Nuit capture menu backends (OCR / QR / playback / annotation)
-tesseract
-tesseract-data-eng
-zbar
-mpv
-swappy
-# NuitOS utility scripts depend on these
-jq
-imagemagick
-libnotify
-fuzzel
-fastfetch
+playerctl
 polkit-gnome
 otf-font-awesome
 ttf-jetbrains-mono-nerd
@@ -88,6 +61,8 @@ ripgrep
 fd
 fzf
 tree-sitter
+nodejs
+npm
 python-pynvim
 
 # File manager
@@ -97,19 +72,16 @@ tumbler
 shared-mime-info
 
 # Browser
-firefox
+chromium
 
-# Login (LightDM + slick-greeter, Mint-style; gruvbox via slick-greeter.conf)
-lightdm
-lightdm-slick-greeter
-qt6-declarative
+# SDDM
+sddm
+sddm-kcm
 
 # Appearance
 qt5ct
 qt6ct
-kvantum
-# adwaita-icon-theme covers GTK symbolic paths
-adwaita-icon-theme
+papirus-icon-theme
 lxappearance
 
 # Audio
@@ -118,6 +90,7 @@ pipewire-pulse
 pipewire-alsa
 wireplumber
 pavucontrol
+playerctl
 
 # Bluetooth
 bluez
@@ -129,20 +102,15 @@ gcc
 make
 pkgconf
 
-# Fonts (JetBrainsMono Nerd is the terminal/UI face)
-ttf-jetbrains-mono-nerd
+# Fonts
+ttf-fira-code
+ttf-fantasque-nerd
+ttf-cascadia-code
+ttf-jetbrains-mono
 
-# Apps (lean: daily-driver only — media via mpv, notes/chat via yay)
+# Apps
 file-roller
+vlc
+zed
 gimp
-
-# Installer (nuit-installer — aesthetic disk installer TUI)
-gum
-gptfdisk
-parted
-dosfstools
-# e2fsprogs = ext4 (mkfs.ext4/fsck.ext4 — pulled in by nothing else, installer needs it)
-e2fsprogs
-btrfs-progs
-arch-install-scripts
-cryptsetup
+obsidian

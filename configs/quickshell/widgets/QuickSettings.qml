@@ -12,10 +12,6 @@ Rectangle {
     radius: Theme.radiusLg
     color: Theme.menuBg
     focus: visible
-    property bool wifiExpanded: false
-    property bool bluetoothExpanded: false
-    property string wifiPassword: ""
-    property string selectedSsid: ""
 
     onVisibleChanged: if (visible) panelIn.restart()
     NumberAnimation {
@@ -54,42 +50,23 @@ Rectangle {
         MouseArea { id: am; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: ab.activated() }
     }
 
-    // Animated expanding flyout shell (used by the Wi-Fi and Bluetooth rows)
-    component ExpandPanel: Rectangle {
-        id: ep
-        property bool expanded: false
-        default property alias contents: epCol.children
+    // Slim launcher row: opens the dedicated Bluetooth / Wi-Fi panel.
+    component DetailRow: Rectangle {
+        id: dr
+        property string label
+        signal opened()
         Layout.fillWidth: true
-        Layout.preferredHeight: ep.expanded ? epCol.implicitHeight + 20 : 0
-        clip: true
-        radius: Theme.radiusMd
-        color: Theme.inactiveBg
-        opacity: ep.expanded ? 1 : 0
-        Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.InOutCubic } }
-        Behavior on opacity { NumberAnimation { duration: 140 } }
-        ColumnLayout {
-            id: epCol
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 10 }
-            spacing: 8
+        implicitHeight: 30
+        radius: Theme.radiusSm
+        color: drMa.containsMouse ? Theme.hover : "transparent"
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            Text { Layout.fillWidth: true; text: dr.label; color: Theme.dimText; elide: Text.ElideRight; font { family: Theme.fontFamily; pixelSize: 10 } }
+            Text { text: "›"; color: Theme.dimText; font.pixelSize: 14 }
         }
-    }
-
-    // Spinning refresh glyph while a scan is in progress
-    component SpinRefresh: Text {
-        id: spinItem
-        property bool spinning: false
-        text: "↻"
-        color: Theme.text
-        font.pixelSize: 16
-        NumberAnimation on rotation {
-            from: 0
-            to: 360
-            duration: 700
-            loops: Animation.Infinite
-            easing.type: Easing.Linear
-            running: spinItem.spinning
-            onStopped: spinItem.rotation = 0
-        }
+        MouseArea { id: drMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: dr.opened() }
     }
 
     ColumnLayout {
@@ -122,93 +99,11 @@ Rectangle {
                     title: "Wi-Fi"
                     subtitle: SysState.wifiEnabled ? (SysState.wifiSsid || "On") : "Off"
                     active: SysState.wifiEnabled
-                    onClicked: {
-                        if (!SysState.wifiEnabled) SysState.setWifi(true)
-                        wifiExpanded = !wifiExpanded
-                        if (wifiExpanded) SysState.scanWifi()
-                    }
+                    onClicked: SysState.setWifi(!SysState.wifiEnabled)
                 }
-                ExpandPanel {
-                    expanded: panel.wifiExpanded
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Text { text: "🛜"; color: Theme.text; font.pixelSize: 20 }
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-                                Text {
-                                    text: SysState.wifiSsid === "" ? "Wi-Fi networks" : SysState.wifiSsid
-                                    color: Theme.text
-                                    font { family: Theme.fontFamily; pixelSize: 12; bold: true }
-                                }
-                                Text {
-                                    text: SysState.wifiSsid === "" ? "Choose a network to connect" : "Connected"
-                                    color: SysState.wifiSsid === "" ? Theme.dimText : Theme.green
-                                    font { family: Theme.fontFamily; pixelSize: 9; bold: true }
-                                }
-                            }
-                            Item {
-                                Layout.preferredWidth: 20
-                                Layout.preferredHeight: 20
-                                SpinRefresh {
-                                    anchors.centerIn: parent
-                                    spinning: SysState.wifiScanning
-                                }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: SysState.scanWifi() }
-                            }
-                        }
-                        ListView {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Math.min(150, contentHeight)
-                            visible: SysState.wifiNetworks.length > 0
-                            clip: true
-                            model: SysState.wifiNetworks
-                            delegate: Rectangle {
-                                required property var modelData
-                                width: ListView.view.width
-                                height: 32
-                                radius: Theme.radiusSm
-                                color: modelData.connected ? Theme.hover : "transparent"
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 8
-                                    anchors.rightMargin: 8
-                                    Text { text: modelData.secured ? "▣" : "□"; color: modelData.connected ? Theme.green : Theme.dimText }
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 0
-                                        Text { Layout.fillWidth: true; text: modelData.ssid; color: Theme.text; elide: Text.ElideRight; font { family: Theme.fontFamily; pixelSize: 11; bold: modelData.connected } }
-                                        Text { text: modelData.connected ? "Connected" : modelData.secured ? "Secured network" : "Open network"; color: modelData.connected ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9 } }
-                                    }
-                                    Text { text: modelData.strength > 75 ? "▂▄▆█" : modelData.strength > 50 ? "▂▄▆" : modelData.strength > 25 ? "▂▄" : "▂"; color: modelData.connected ? Theme.green : Theme.blue; font.pixelSize: 10 }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { selectedSsid = modelData.ssid; wifiPassword = "" } }
-                                }
-                            }
-                        }
-                        TextField {
-                            Layout.fillWidth: true
-                            visible: selectedSsid !== ""
-                            placeholderText: "Password for " + selectedSsid
-                            echoMode: TextInput.Password
-                            text: wifiPassword
-                            onTextChanged: wifiPassword = text
-                            font.family: Theme.fontFamily
-                        }
-                        Rectangle {
-                            Layout.fillWidth: true
-                            visible: selectedSsid !== ""
-                            implicitHeight: 30
-                            radius: Theme.radiusSm
-                            color: Theme.accent
-                            Text { anchors.centerIn: parent; text: "Connect"; color: Theme.accentText; font.pixelSize: 11; font.bold: true }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { SysState.connectWifi(selectedSsid, wifiPassword); selectedSsid = "" } }
-                        }
-                        Text {
-                            visible: SysState.wifiError !== ""
-                            text: SysState.wifiError
-                            color: Theme.error
-                            font.pixelSize: 10
-                        }
+                DetailRow {
+                    label: SysState.wifiSsid === "" ? "Wi-Fi networks" : SysState.wifiSsid
+                    onOpened: SysState.toggleWifi()
                 }
             }
             ColumnLayout {
@@ -218,81 +113,13 @@ Rectangle {
                     Layout.fillWidth: true
                     icon: SysState.btPowered ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic"
                     title: "Bluetooth"
-                    subtitle: SysState.btPowered ? (SysState.btDevices.length > 0 ? SysState.btDevices.length + " devices" : "Ready") : "Off"
+                    subtitle: SysState.btPowered ? (SysState.btConnected.length > 0 ? SysState.btConnected.length + " connected" : SysState.btDevices.length > 0 ? SysState.btDevices.length + " devices" : "Ready") : "Off"
                     active: SysState.btPowered
-                    onClicked: {
-                        if (!SysState.btPowered) SysState.setBluetooth(true)
-                        bluetoothExpanded = !bluetoothExpanded
-                        if (bluetoothExpanded) SysState.scanBluetooth()
-                    }
+                    onClicked: SysState.setBluetooth(!SysState.btPowered)
                 }
-                ExpandPanel {
-                    expanded: panel.bluetoothExpanded
-                        RowLayout {
-                            Layout.fillWidth: true
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 1
-                                Text { text: "Bluetooth devices"; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 11; bold: true } }
-                                Text { text: SysState.btConnectedAddresses.length > 0 ? SysState.btConnectedAddresses.length + " connected" : "Ready to connect"; color: SysState.btConnectedAddresses.length > 0 ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9; bold: true } }
-                            }
-                            Item {
-                                Layout.preferredWidth: 20
-                                Layout.preferredHeight: 20
-                                SpinRefresh {
-                                    anchors.centerIn: parent
-                                    spinning: SysState.bluetoothScanning
-                                    color: Theme.accent
-                                }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: SysState.scanBluetooth() }
-                            }
-                        }
-                        ListView {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Math.min(140, contentHeight)
-                            visible: SysState.btDevices.length > 0
-                            clip: true
-                            model: SysState.btDevices
-                            delegate: Rectangle {
-                                required property var modelData
-                                width: ListView.view.width
-                                height: 34
-                                radius: Theme.radiusSm
-                                color: btMouse.containsMouse ? Theme.hover : "transparent"
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 8
-                                    anchors.rightMargin: 8
-                                    Text { text: "ᛒ"; color: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? Theme.green : Theme.foreground; font.pixelSize: 15 }
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 0
-                                        Text { Layout.fillWidth: true; text: modelData.name; color: Theme.text; elide: Text.ElideRight; font { family: Theme.fontFamily; pixelSize: 11; bold: true } }
-                                        Text { Layout.fillWidth: true; text: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? "Connected" : modelData.address; color: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9 } }
-                                    }
-                                    Text { text: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? "Connected" : "Connect"; color: SysState.btConnectedAddresses.indexOf(modelData.address) >= 0 ? Theme.green : Theme.accent; font { family: Theme.fontFamily; pixelSize: 9; bold: true } }
-                                }
-                                MouseArea {
-                                    id: btMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: SysState.connectBluetooth(modelData.address)
-                                }
-                            }
-                        }
-                        Text {
-                            visible: SysState.btDevices.length === 0
-                            text: "No paired devices found"
-                            color: Theme.dimText
-                            font { family: Theme.fontFamily; pixelSize: 10 }
-                        }
-                        Text {
-                            visible: SysState.btError !== ""
-                            text: SysState.btError
-                            color: Theme.error
-                            font { family: Theme.fontFamily; pixelSize: 10 }
-                        }
+                DetailRow {
+                    label: SysState.btConnected.length > 0 ? SysState.btConnected[0].name + (SysState.btConnected.length > 1 ? " +" + (SysState.btConnected.length - 1) : "") : "Bluetooth devices"
+                    onOpened: SysState.toggleBluetooth()
                 }
             }
             QSToggle {
