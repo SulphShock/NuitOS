@@ -1,8 +1,9 @@
 #!/bin/bash
 # nuit-installer — NuitOS disk installer (aesthetic TUI)
 #
-# Phase 1 (gum TUI): disk, filesystem, swap, LUKS, locale, keymap, timezone,
+# Phase 1 (gum TUI): disk, filesystem, swap, LUKS,
 #                    user, hostname, summary.
+#                    (locale/keymap/timezone fixed: en_US + us + Etc/UTC)
 # Phase 2 (root, non-interactive): partition + format, pacstrap the NuitOS
 #                    package list, chroot theming (skel, plymouth, LightDM,
 #                    systemd-boot, locale, time, user) and clean first boot.
@@ -273,17 +274,12 @@ LUKS_PASS=""
 }
 
 # --- Locale / keymap / timezone ------------------------------------------
-prompt "Locale"
-LOCALE="$(printf 'en_US.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\nfr_FR.UTF-8 UTF-8\nes_ES.UTF-8 UTF-8\nit_IT.UTF-8 UTF-8\npt_BR.UTF-8 UTF-8\nnl_NL.UTF-8 UTF-8\npl_PL.UTF-8 UTF-8\nru_RU.UTF-8 UTF-8\nja_JP.UTF-8 UTF-8\n' | gum choose --cursor-prefix "$ACCENT ▸ " --header "Locale")"
+# Fixed defaults: English (US) + UTC, no prompt.
+LOCALE="en_US.UTF-8 UTF-8"
 LANG_VAL="${LOCALE%% *}"
-
-prompt "Keymap"
-KEYMAP="$(localectl list-keymaps 2>/dev/null | gum filter --placeholder "search keymap…" --header "Keymap")"
-[[ -z "$KEYMAP" ]] && KEYMAP="us"
-
-prompt "Timezone (type to search)"
-TZ="$(timedatectl list-timezones 2>/dev/null | gum filter --placeholder "search region/city…" --header "Timezone")"
-[[ -z "$TZ" ]] && TZ="Etc/UTC"
+KEYMAP="us"
+TZ="Etc/UTC"
+info "Locale/keymap/timezone fixed: ${LANG_VAL} ${KEYMAP} ${TZ}"
 
 # --- User ----------------------------------------------------------------
 prompt "Your full name"
