@@ -24,6 +24,15 @@ man-pages
 tlp
 reflector
 
+# Installer runtime (nuit-installer Phase 2 needs these LIVE, not just on target)
+gptfdisk
+dosfstools
+btrfs-progs
+e2fsprogs
+cryptsetup
+arch-install-scripts
+parted
+
 # Display server
 xorg-server
 xorg-xinit
