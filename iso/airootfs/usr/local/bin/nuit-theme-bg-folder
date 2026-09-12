@@ -1,13 +1,12 @@
 #!/bin/bash
-# Opens the backgrounds folder. go stare at art.
 # nuit-theme-bg-folder — open the backgrounds folder
 # Usage: nuit-theme-bg-folder
 set -euo pipefail
-THEME="${NUIT_THEME:-default}"
+THEME="${NUIT_THEME:-${OMARCHY_THEME:-default}}"
 BG_DIR="$HOME/.config/nuit/backgrounds/$THEME"
 mkdir -p "$BG_DIR"
-if command -v thunar >/dev/null 2>&1; then
-  thunar "$BG_DIR" >/dev/null 2>&1 &
+if command -v nautilus >/dev/null 2>&1; then
+  nautilus "$BG_DIR" >/dev/null 2>&1 &
 elif command -v xdg-open >/dev/null 2>&1; then
   xdg-open "$BG_DIR" >/dev/null 2>&1 &
 else

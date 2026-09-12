@@ -11,23 +11,24 @@ import "../lib/FuzzySearch.js" as Fuzzy
 Rectangle {
     id: menu
     color: Theme.scrim
+    focus: visible
+
+    // Launcher-wide keys: hold even when the search box lost focus.
+    Keys.onEscapePressed: SysState.actOpen = false
+    Keys.onUpPressed: moveSelection(0, -1)
+    Keys.onDownPressed: moveSelection(0, 1)
+    Keys.onLeftPressed: { if (gridVisible) moveSelection(-1, 0) }
+    Keys.onRightPressed: { if (gridVisible) moveSelection(1, 0) }
+    Keys.onTabPressed: function(event) { gridView = !gridView; event.accepted = true }
 
     property int selectedIndex: 0
     property bool gridView: true
     property int gridCols: 5
 
-    // ── Entries hidden on request: avahi utils, xgps utils,
-    // hardware locality (lstopo), Volume Control ──
-    // NOTE: the Nuit OS Installer is intentionally VISIBLE (it is the disk
-    // installer; README + keybinds sheet point users at the app grid).
+    // Entries hidden on request: none right now. Owner will say what to
+    // hide later; until then everything installed is shown.
     // Matched case-insensitively against the desktop id + display name.
     readonly property var hiddenMatchers: [
-        "avahi",               // Avahi Zeroconf / SSH / VNC browsers
-        "bssh", "bvnc",
-        "xgps",                // xgps + xgpsspeed
-        "v4l2", "qv4l2", "qvidcap", // Qt V4L2 test + video capture utilities
-        "lstopo", "hardware locality",
-        "pavucontrol", "volume control"
     ]
 
     function isHidden(entry) {
@@ -37,10 +38,20 @@ Rectangle {
     }
 
     // ── All launchable apps, sorted A–Z until you type ──
-    readonly property var allApps: DesktopEntries.applications.values
-        .filter(a => a && !a.noDisplay && a.name && a.name !== "" && !isHidden(a))
-        .slice()
-        .sort((x, y) => x.name.localeCompare(y.name))
+    // appRev forces a recompute: new installs change DesktopEntries while
+    // the shell runs, but the .values array never notifies on its own.
+    property int appRev: 0
+    readonly property var allApps: {
+        appRev                // bumped on open + whenever the entry count changes
+        return DesktopEntries.applications.values
+            .filter(a => a && !a.noDisplay && a.name && a.name !== "" && !isHidden(a))
+            .slice()
+            .sort((x, y) => x.name.localeCompare(y.name))
+    }
+    Connections {
+        target: DesktopEntries.applications
+        function onCountChanged() { menu.appRev++ }
+    }
 
     function bookmarkFor(a) {
         return {
@@ -141,6 +152,7 @@ Rectangle {
         if (visible) {
             search.text = ""
             selectedIndex = 0
+            menu.appRev++   // fresh installs appear without a shell restart
             search.forceActiveFocus()
         }
     }
@@ -265,14 +277,16 @@ Rectangle {
                 border.width: 1
                 Behavior on border.color { ColorAnimation { duration: 140 } }
             }
-            Keys.onEscapePressed: {
-                if (search.text !== "") search.text = ""
-                else SysState.actOpen = false
-            }
+            Keys.onEscapePressed: SysState.actOpen = false
             Keys.onPressed: function(event) {
                 const ctrl = (event.modifiers & Qt.ControlModifier) !== 0
-                if ((event.key === Qt.Key_J && ctrl) || event.key === Qt.Key_Down) { menu.moveSelection(0, 1); event.accepted = true }
-                else if ((event.key === Qt.Key_K && ctrl) || event.key === Qt.Key_Up) { menu.moveSelection(0, -1); event.accepted = true }
+                if (event.key === Qt.Key_Down) { menu.moveSelection(0, 1); event.accepted = true }
+                else if (event.key === Qt.Key_Up) { menu.moveSelection(0, -1); event.accepted = true }
+                else if (event.key === Qt.Key_Left) { if (menu.gridVisible) menu.moveSelection(-1, 0); event.accepted = true }
+                else if (event.key === Qt.Key_Right) { if (menu.gridVisible) menu.moveSelection(1, 0); event.accepted = true }
+                else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) { menu.gridView = !menu.gridView; event.accepted = true }
+                else if ((event.key === Qt.Key_J && ctrl)) { menu.moveSelection(0, 1); event.accepted = true }
+                else if ((event.key === Qt.Key_K && ctrl)) { menu.moveSelection(0, -1); event.accepted = true }
                 else if ((event.key === Qt.Key_N && ctrl)) { menu.moveSelection(0, 1); event.accepted = true }
                 else if ((event.key === Qt.Key_P && ctrl)) { menu.moveSelection(0, -1); event.accepted = true }
                 else if ((event.key === Qt.Key_H && ctrl)) { menu.moveSelection(-1, 0); event.accepted = true }
@@ -282,12 +296,6 @@ Rectangle {
                 else if (event.key === Qt.Key_Home) { menu.selectedIndex = 0; event.accepted = true }
                 else if (event.key === Qt.Key_End) { menu.selectedIndex = menu.filteredApps.length - 1; event.accepted = true }
             }
-            Keys.onUpPressed: menu.moveSelection(0, -1)
-            Keys.onDownPressed: {
-                if (menu.gridVisible || menu.listVisible) menu.moveSelection(0, 1)
-            }
-            Keys.onLeftPressed: { if (menu.gridVisible) menu.moveSelection(-1, 0) }
-            Keys.onRightPressed: { if (menu.gridVisible) menu.moveSelection(1, 0) }
             Keys.onReturnPressed: {
                 if (menu.calcResult !== null && search.text.trim() !== "") menu.launchSelected()
                 else if (menu.filteredApps.length > 0) menu.launchSelected()

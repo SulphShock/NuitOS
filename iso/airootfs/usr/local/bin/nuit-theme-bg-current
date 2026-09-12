@@ -1,5 +1,4 @@
 #!/bin/bash
-# Prints today's background. that's it, that's the script.
 # nuit-theme-bg-current — print the current background path
 # Usage: nuit-theme-bg-current
 set -euo pipefail

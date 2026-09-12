@@ -1,5 +1,4 @@
 #!/bin/bash
-# Middleman between "you went idle" and "pretty overlay". No orphans, promise.
 # nuit-idle-animation — bridge hypridle → QuickShell idle overlay.
 # Usage: nuit-idle-animation on|off
 #   on   show the idle dim overlay (qs ipc call gsb setIdle true)

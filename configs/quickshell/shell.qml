@@ -20,7 +20,7 @@ ShellRoot {
             // ── Popup layer (Quick Settings + Calendar + Reminders) with click-away scrim ──
             PanelWindow {
                 screen: scr.modelData
-                visible: SysState.qsOpen || SysState.settingsOpen || SysState.remOpen || SysState.btOpen || SysState.wifiOpen || SysState.capOpen || SysState.ytOpen || SysState.planOpen || SysState.calOpen || SysState.notifOpen
+                visible: SysState.qsOpen || SysState.settingsOpen || SysState.remOpen || SysState.btOpen || SysState.wifiOpen || SysState.capOpen || SysState.ytOpen || SysState.hubOpen || SysState.notifOpen
                 anchors { top: true; bottom: true; left: true; right: true }
                 exclusionMode: ExclusionMode.Ignore
                 color: "transparent"
@@ -35,13 +35,8 @@ ShellRoot {
                     anchors { top: parent.top; right: parent.right
                               topMargin: Theme.barHeight + 8; rightMargin: 8 }
                 }
-                Planova {
-                    visible: SysState.planOpen
-                    anchors { top: parent.top; horizontalCenter: parent.horizontalCenter
-                              topMargin: Theme.barHeight + 8 }
-                }
-                CalendarPanel {
-                    visible: SysState.calOpen
+                TimeHub {
+                    visible: SysState.hubOpen
                     anchors { top: parent.top; horizontalCenter: parent.horizontalCenter
                               topMargin: Theme.barHeight + 8 }
                 }
@@ -127,8 +122,8 @@ ShellRoot {
     IpcHandler {
         target: "gsb"
         function toggleQuickSettings(): void { SysState.toggleQs() }
-        function togglePlan(): void          { SysState.togglePlan() }
-        function toggleCalendar(): void      { SysState.toggleCalendar() }
+        function toggleHub(): void           { SysState.toggleHub() }
+        function toggleCalendar(): void      { SysState.toggleHub() }
         function toggleNotifs(): void        { SysState.toggleNotifs() }
         function toggleActivities(): void    { SysState.toggleActivities() }
         function toggleSettings(): void      { SysState.toggleSettings() }

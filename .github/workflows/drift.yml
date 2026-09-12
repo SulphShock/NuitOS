@@ -1,0 +1,33 @@
+name: drift
+on: [push, pull_request]
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Drift guard (canonical vs skel)
+        run: |
+          set -e
+          fail=0
+          ck() { cmp -s "$1" "$2" || { echo "drift: $1 != $2"; fail=1; }; }
+          ck configs/bin/nuit-capture-menu iso/airootfs/usr/local/bin/nuit-capture-menu
+          ck configs/bin/nuit-screenrecord iso/airootfs/usr/local/bin/nuit-screenrecord
+          ck configs/bin/nuit-screenshot iso/airootfs/usr/local/bin/nuit-screenshot
+          ck configs/bin/nuit-idle-animation iso/airootfs/usr/local/bin/nuit-idle-animation
+          for t in nuit-theme-bg-set nuit-theme-bg-next nuit-theme-bg-folder nuit-theme-bg-current; do
+            ck scripts/$t iso/airootfs/usr/local/bin/$t
+          done
+          ck configs/hyprland/hyprland.conf iso/airootfs/etc/skel/.config/hypr/hyprland.conf
+          for hf in env.conf appearance.conf rules.conf autostart.conf bindings.conf bindings.lua hyprland.lua; do
+            ck configs/hyprland/$hf iso/airootfs/etc/skel/.config/hypr/$hf
+          done
+          ck configs/hyprland/shaders/nuit-night-light.glsl iso/airootfs/etc/skel/.config/hypr/shaders/nuit-night-light.glsl
+          ck configs/hyprpaper/hyprpaper.conf iso/airootfs/etc/skel/.config/hypr/hyprpaper.conf
+          ck configs/nuit/keybinds.txt iso/airootfs/etc/skel/.config/nuit/keybinds.txt
+          ck configs/hypridle/hypridle.conf iso/airootfs/etc/skel/.config/hypr/hypridle.conf
+          ck configs/hyprlock/hyprlock.conf iso/airootfs/etc/skel/.config/hypr/hyprlock.conf
+          for d in quickshell ghostty nvim fastfetch Branding gammastep; do
+            diff -rq configs/$d iso/airootfs/etc/skel/.config/$d || { echo "drift: configs/$d"; fail=1; }
+          done
+          [ ! -s iso/airootfs/etc/machine-id ] || { echo "machine-id must be empty"; fail=1; }
+          exit $fail
