@@ -45,6 +45,11 @@ if ! command -v yay &>/dev/null; then
   install_yay
 fi
 
+# Empty /etc/machine-id suppresses systemd-firstboot on the live ISO.
+# Must run here (not just ship the file): pacstrap's systemd scriptlet writes
+# "uninitialized" AFTER the profile copy, and that string counts as first boot.
+: > /etc/machine-id
+
 # Nuit helpers must stay executable in the live env regardless of how the
 # working tree was checked out (mkarchiso preserves source modes).
 chmod 755 /usr/local/bin/nuit-* 2>/dev/null || true
