@@ -7,7 +7,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install archiso
-        run: pacman -Sy --noconfirm archiso git
+        run: pacman -Sy --noconfirm archiso git diffutils
       - name: Build ISO
         run: |
           export NUIT_WORK=/tmp/nuitos-build
