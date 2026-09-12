@@ -80,6 +80,10 @@ if [ "$MODE" = "full" ]; then
         diff -rq "$REPO/configs/$d" "$REPO/iso/airootfs/etc/skel/.config/$d" >/dev/null 2>&1 \
             || { warn "drift: configs/$d != skel .config/$d"; drift=1; }
     done
+    # Empty /etc/machine-id suppresses systemd-firstboot on the live ISO
+    # (missing file = first-boot prompt blocking the desktop).
+    [ -f "$REPO/iso/airootfs/etc/machine-id" ] || { warn "missing iso/airootfs/etc/machine-id (live boot hits systemd-firstboot)"; drift=1; }
+    [ ! -s "$REPO/iso/airootfs/etc/machine-id" ] || { warn "iso/airootfs/etc/machine-id must be empty (filled at boot)"; drift=1; }
     [ "$drift" -eq 0 ] || die "config drift detected — sync the canonical sources and re-run"
     note "drift guard clean"
 
