@@ -23,3 +23,14 @@ Fill every row with pasted command output. Blank = not done.
 | lynis | installed | `lynis audit system` | triaged, every warning fixed or reasoned | TODO |
 
 ## Paste outputs below (one section per row)
+
+### 2026-09-12 dev-box evidence (branch sync/live-to-repo, no sudo / no live ISO)
+
+- Package hygiene: `grep -E '^[^#[:blank:]]+[[:blank:]]+#' iso/packages.x86_64 pkgs-disk.txt` → no hits (HYGIENE-OK).
+- Skel drift: split-hypr 7 files + shader + quickshell tree all `cmp/diff -rq` clean (SKEL-DRIFT-CLEAN).
+- Wallpapers: 5× WebP, 166K–616K each, dir total 1.9M (was 39M). Originals in `~/nuitos-wallpapers-originals/` (local, uncommitted).
+- `bash -n` installer + release script: both OK.
+- B6 code: `profiledef.sh` now `0640 etc/shadow etc/gshadow` + `0644 passwd/group` with fixed indices. Live+installed `ls -l` rows stay TODO for live-ISO boot.
+- B1-B5/B7 rows stay TODO for live-ISO boot (needs sudo + VM). B7 code path fixed via bindings unify (ghostty+firefox).
+- Task 0.3 login as `nuitos-test`: BLOCKED — no sudo in this shell (`useradd` refused). File-level smoke green (TimeHub present, Planova gone, split hypr 9/9, zero `/home/freeman` refs, drift clean). Full login must run on live ISO / sudo box.
+- Real hardware: out of scope for v1.0 (VM UEFI install is the gate).
