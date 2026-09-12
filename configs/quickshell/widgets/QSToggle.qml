@@ -12,7 +12,6 @@ Rectangle {
     property color activeColor: Theme.accent
     property color fillColor: Theme.accent
     property string icon: ""
-    property string customGlyph: ""
     property string title: ""
     property string subtitle: ""
     signal clicked()
@@ -43,7 +42,6 @@ Rectangle {
         anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
         spacing: 12
         WhiteIcon {
-            visible: root.customGlyph === ""
             anchors.verticalCenter: parent.verticalCenter
             size: 20
             source: Theme.icon(root.icon)
@@ -51,31 +49,6 @@ Rectangle {
             opacity: root.active ? 1 : 0.85
             Behavior on tint { ColorAnimation { duration: 120 } }
             Behavior on opacity { NumberAnimation { duration: 120 } }
-            NumberAnimation {
-                id: iconPulse
-                target: parent
-                property: "rotation"
-                from: -14
-                to: 0
-                duration: 200
-                easing.type: Easing.OutBack
-            }
-            Connections {
-                target: root
-                function onActiveChanged() {
-                    parent.rotation = 0
-                    iconPulse.restart()
-                }
-            }
-        }
-        Text {
-            visible: root.customGlyph !== ""
-            width: 20
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.customGlyph
-            horizontalAlignment: Text.AlignHCenter
-            color: root.active ? Theme.accentText : Theme.text
-            font.pixelSize: 17
         }
         Column {
             anchors.verticalCenter: parent.verticalCenter

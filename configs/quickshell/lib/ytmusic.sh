@@ -1,0 +1,308 @@
+#!/usr/bin/env bash
+# Music backend. mpv + yt-dlp behind a tiny JSON protocol.
+# See NOTICE.md for sources.
+
+set -euo pipefail
+
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}/nuit-ytmusic"
+socket="$runtime_dir/mpv.sock"
+state_file="$runtime_dir/state.json"
+queue_file="$runtime_dir/queue.json"
+pid_file="$runtime_dir/mpv.pid"
+fail_file="$runtime_dir/fail_streak"
+mkdir -p "$runtime_dir"
+[[ -e "$queue_file" ]] || printf '[]\n' >"$queue_file"
+
+require() {
+  command -v "$1" >/dev/null 2>&1 || {
+    printf 'Missing dependency: %s\n' "$1" >&2
+    exit 127
+  }
+}
+
+ipc() {
+  [[ -S "$socket" ]] || return 1
+  printf '%s\n' "$1" | socat -T 0.4 - "UNIX-CONNECT:$socket" 2>/dev/null
+}
+
+# Confirms the pid still belongs to one of *our* mpv instances before signalling
+# it. Pids are recycled by the kernel, and killing an unrelated process would be
+# far worse than leaving an orphan behind.
+is_our_mpv() {
+  local pid="$1"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  # Braces so that 2>/dev/null also swallows the REDIRECTION error: the process
+  # can die between the kill -0 and the read, and then it is the shell itself
+  # that complains about the missing /proc entry, before `tr` even runs.
+  { tr '\0' ' ' <"/proc/$pid/cmdline" | grep -qF -- "$socket"; } 2>/dev/null
+}
+
+# Caller must hold launch.lock so stop and track changes cannot overlap.
+kill_old_mpv() {
+  local old_pid=""
+  [[ -r "$pid_file" ]] && old_pid="$(<"$pid_file")"
+
+  if [[ -S "$socket" ]]; then
+    ipc '{"command":["quit"]}' >/dev/null || true
+  fi
+
+  # The socket only appears after mpv is up, and that depends on yt-dlp
+  # resolving the stream (seconds). Switching tracks inside that window left the
+  # `quit` above with no recipient: the old mpv kept playing underneath the new
+  # one. The pid exists from launch time, so it is the pid that guarantees a
+  # single mpv.
+  if is_our_mpv "$old_pid"; then
+    for _ in {1..40}; do
+      is_our_mpv "$old_pid" || break
+      sleep 0.05
+    done
+    is_our_mpv "$old_pid" && kill -TERM "$old_pid" 2>/dev/null || true
+    for _ in {1..20}; do
+      is_our_mpv "$old_pid" || break
+      sleep 0.05
+    done
+    is_our_mpv "$old_pid" && kill -KILL "$old_pid" 2>/dev/null || true
+  fi
+
+  rm -f -- "$socket"
+  rm -f -- "$pid_file"
+}
+
+launch_url() {
+  local url="$1"
+  require mpv
+
+  kill_old_mpv
+  mpv --no-video --force-window=no --input-ipc-server="$socket" \
+    --ytdl-format=bestaudio/best --volume=70 --title='YouTube Music' \
+    "$url" 9>&- >/dev/null 2>&1 &
+  mpv_pid=$!
+  printf '%s\n' "$mpv_pid" >"$pid_file"
+  watch_track "$mpv_pid"
+}
+
+# End-of-track watcher. Without it the queue never advances on its own: mpv
+# exits when the song ends and nothing called `next`, so every track stopped at
+# its end and a 40-track queue played exactly one song.
+watch_track() {
+  local mpv_pid="$1"
+  (
+    # Drop the lock fd: this subshell lives for the whole song, and inheriting
+    # the open descriptor would hold launch_url's lock for all that time.
+    exec 9>&-
+    local started played current count index streak
+    started="$(date +%s)"
+    while is_our_mpv "$mpv_pid"; do sleep 1; done
+    played=$(( $(date +%s) - started ))
+
+    # Claim the advance under the lock: if the pid file is no longer ours, the
+    # user changed track (another launch, or `stop`) -- this is not an
+    # end-of-song, and there is nothing to advance.
+    exec 9>"$runtime_dir/launch.lock"
+    flock 9
+    current=""
+    [[ -r "$pid_file" ]] && current="$(<"$pid_file")"
+    if [[ "$current" != "$mpv_pid" ]]; then
+      exit 0
+    fi
+    rm -f -- "$pid_file"
+
+    # A quick death is not an end-of-song, it is a track that never played
+    # (yt-dlp could not resolve it, video removed, region locked). Skip it
+    # anyway, but with a cap: without one a bad run would race through the whole
+    # queue in seconds. A long play resets the counter.
+    if (( played < 10 )); then
+      streak=$(( $(cat "$fail_file" 2>/dev/null || printf 0) + 1 ))
+      if (( streak >= 3 )); then
+        rm -f -- "$fail_file"
+        exit 0
+      fi
+      printf '%s\n' "$streak" >"$fail_file"
+    else
+      rm -f -- "$fail_file"
+    fi
+
+    # Automatic advance does not wrap around: it stops at the last item. The
+    # `next` button still wraps (start_index is modular) -- there the user asked
+    # for it.
+    count="$(jq 'length' "$queue_file" 2>/dev/null || printf 0)"
+    index="$(jq -r '.index // -1' "$state_file" 2>/dev/null || printf -- -1)"
+    if (( count > 0 )) && (( index >= 0 )) && (( index + 1 < count )); then
+      start_index "$((index + 1))"
+    fi
+  ) >/dev/null 2>&1 &
+}
+
+start_index() {
+  local index="$1"
+  local count track video_id state_tmp
+  count="$(jq 'length' "$queue_file")"
+  (( count > 0 )) || exit 0
+  index=$(( (index % count + count) % count ))
+  track="$(jq -c ".[$index]" "$queue_file")"
+  video_id="$(jq -r '.videoId' <<<"$track")"
+  [[ "$video_id" =~ ^[A-Za-z0-9_-]{6,20}$ ]] || exit 2
+  state_tmp="$runtime_dir/state.json.tmp"
+  jq -c --argjson index "$index" '. + {index: $index}' <<<"$track" >"$state_tmp"
+  mv -- "$state_tmp" "$state_file"
+  launch_url "https://www.youtube.com/watch?v=$video_id"
+}
+
+# Serialize the complete state change, not just the mpv launch. The bar and
+# popup are separate callers. Shared locks keep status snapshots consistent.
+case "${1:-}" in
+  queue|requeue|play|next|previous|stop)
+    require flock
+    exec 9>"$runtime_dir/launch.lock"
+    flock 9
+    ;;
+  status)
+    require flock
+    exec 9>"$runtime_dir/launch.lock"
+    flock -s 9
+    ;;
+esac
+case "${1:-}" in
+  queue|play|next|previous|stop) rm -f -- "$fail_file" ;;
+esac
+
+case "${1:-}" in
+  search)
+    require yt-dlp
+    query="${2:-}"
+    [[ -n "$query" ]] || exit 0
+    yt-dlp --ignore-errors --skip-download --flat-playlist --playlist-end 12 \
+      --print $'%(id)s\t%(title)s\t%(channel)s\t%(duration_string)s\t%(thumbnail)s\t%(live_status)s' \
+      "ytsearch12:${query}"
+    ;;
+  mix)
+    # Mix built from a seed track -- "mix" is what YouTube itself calls these RD
+    # playlists. RDAMVM<id> is the one YouTube Music builds; the classic RD<id>
+    # exists too, but stays locked to the seed's artist for far longer, which is
+    # worse for discovering anything new.
+    require yt-dlp
+    video_id="${2:-}"
+    [[ "$video_id" =~ ^[A-Za-z0-9_-]{11}$ ]] || exit 2
+    yt-dlp --ignore-errors --skip-download --flat-playlist --playlist-end 40 \
+      --print $'%(id)s\t%(title)s\t%(channel)s\t%(duration_string)s\t%(thumbnail)s\t%(live_status)s' \
+      "https://www.youtube.com/watch?v=${video_id}&list=RDAMVM${video_id}"
+    ;;
+  queue)
+    require jq
+    queue_json="${2:-[]}"
+    index="${3:-0}"
+    [[ "$index" =~ ^[0-9]+$ ]] || exit 2
+    queue_tmp="$runtime_dir/queue.json.tmp"
+    jq -ce 'if type == "array" then . else error("queue must be an array") end' <<<"$queue_json" >"$queue_tmp"
+    mv -- "$queue_tmp" "$queue_file"
+    start_index "$index"
+    ;;
+  requeue)
+    # Replace the queue WITHOUT relaunching mpv: the track on air keeps playing,
+    # only "up next" and the index that next/previous count from change. This is
+    # what lets a song opened from search receive its mix a few seconds later
+    # without cutting the audio to rebuild the list.
+    require jq
+    queue_json="${2:-[]}"
+    index="${3:-0}"
+    [[ "$index" =~ ^[0-9]+$ ]] || exit 2
+    # A mix may finish after the user changes track. Check its seed while
+    # holding the same lock as queue replacement and playback changes.
+    expected_seed="${4:-}"
+    if [[ -n "$expected_seed" ]]; then
+      current_seed="$(jq -r '.videoId // ""' "$state_file" 2>/dev/null || true)"
+      [[ "$current_seed" == "$expected_seed" ]] || exit 0
+    fi
+    queue_tmp="$runtime_dir/queue.json.tmp"
+    jq -ce 'if type == "array" then . else error("queue must be an array") end' <<<"$queue_json" >"$queue_tmp"
+    mv -- "$queue_tmp" "$queue_file"
+    # With no state.json there is no track playing, so no index to fix.
+    if [[ -s "$state_file" ]]; then
+      state_tmp="$runtime_dir/state.json.tmp"
+      jq -c --argjson index "$index" '. + {index: $index}' "$state_file" >"$state_tmp"
+      mv -- "$state_tmp" "$state_file"
+    fi
+    ;;
+  play)
+    require jq
+    url="${2:-}"
+    [[ "$url" == https://www.youtube.com/watch?v=* || "$url" == https://youtu.be/* ]] || exit 2
+    jq -cn --arg title "${3:-Unknown track}" --arg artist "${4:-YouTube}" \
+      --arg thumbnail "${5:-}" --arg duration "${6:-}" \
+      '{title:$title,artist:$artist,thumbnail:$thumbnail,duration:$duration,index:-1}' >"$state_file"
+    launch_url "$url"
+    ;;
+  next)
+    require jq
+    [[ -s "$queue_file" ]] || exit 0
+    current="$(jq -r '.index // -1' "$state_file" 2>/dev/null || printf '%s' -1)"
+    start_index "$((current + 1))"
+    ;;
+  previous)
+    require jq
+    [[ -s "$queue_file" ]] || exit 0
+    current="$(jq -r '.index // 0' "$state_file" 2>/dev/null || printf '%s' 0)"
+    start_index "$((current - 1))"
+    ;;
+  toggle)
+    require socat
+    ipc '{"command":["cycle","pause"]}' >/dev/null
+    ;;
+  pause)
+    require socat
+    ipc '{"command":["set_property","pause",true]}' >/dev/null
+    ;;
+  resume)
+    require socat
+    ipc '{"command":["set_property","pause",false]}' >/dev/null
+    ;;
+  seek)
+    require socat
+    seconds="${2:-0}"
+    [[ "$seconds" =~ ^-?[0-9]+$ ]] || exit 2
+    ipc "{\"command\":[\"seek\",$seconds,\"relative\"]}" >/dev/null
+    ;;
+  volume)
+    require socat
+    value="${2:-70}"
+    [[ "$value" =~ ^[0-9]+$ ]] || exit 2
+    (( value > 100 )) && value=100
+    ipc "{\"command\":[\"set_property\",\"volume\",$value]}" >/dev/null
+    ;;
+  stop)
+    require socat
+    kill_old_mpv
+    ;;
+  status)
+    require jq
+    if [[ ! -S "$socket" ]]; then
+      if [[ -s "$state_file" ]]; then
+        jq -c --slurpfile queue "$queue_file" '. + {running:false,paused:true,position:0,playbackDuration:0,queue:($queue[0] // [])}' "$state_file"
+      else
+        jq -cn --slurpfile queue "$queue_file" '{running:false,paused:true,position:0,playbackDuration:0,queue:($queue[0] // [])}'
+      fi
+      exit 0
+    fi
+    responses="$(printf '%s\n' \
+      '{"command":["get_property","pause"],"request_id":1}' \
+      '{"command":["get_property","time-pos"],"request_id":2}' \
+      '{"command":["get_property","duration"],"request_id":3}' \
+      | socat -T 0.4 - "UNIX-CONNECT:$socket" 2>/dev/null || true)"
+    if [[ -s "$state_file" ]]; then
+      jq -sc --slurpfile track "$state_file" --slurpfile queue "$queue_file" '($track[0] // {}) + {
+        running:true,
+        paused:((map(select(.request_id == 1))[0].data) // false),
+        position:((map(select(.request_id == 2))[0].data) // 0),
+        playbackDuration:((map(select(.request_id == 3))[0].data) // 0),
+        queue:($queue[0] // [])
+      }' <<<"$responses"
+    else
+      jq -sc '{running:true,paused:((map(select(.request_id == 1))[0].data)//false),position:((map(select(.request_id == 2))[0].data)//0),playbackDuration:((map(select(.request_id == 3))[0].data)//0)}' <<<"$responses"
+    fi
+    ;;
+  *)
+    printf 'Usage: youtube-music <search QUERY|mix VIDEO_ID|queue JSON INDEX|requeue JSON INDEX|play URL [TITLE ARTIST THUMBNAIL DURATION]|next|previous|toggle|pause|resume|seek SECONDS|volume 0-100|stop|status>\n' >&2
+    exit 2
+    ;;
+esac

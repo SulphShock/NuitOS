@@ -1,0 +1,59 @@
+#!/bin/bash
+# Middleman between "you went idle" and "pretty overlay". No orphans, promise.
+# nuit-idle-animation — bridge hypridle → QuickShell idle overlay.
+# Usage: nuit-idle-animation on|off
+#   on   show the idle dim overlay (qs ipc call gsb setIdle true)
+#   off  hide it again (qs ipc call gsb setIdle false)
+#
+# Wired in hypridle.conf Stage 1: `on-timeout = nuit-idle-animation on`,
+# `on-resume = nuit-idle-animation off`. The overlay itself is
+# configs/quickshell/widgets/IdleOverlay.qml, toggled via SysState.idleDim.
+#
+# Design: stateless and instant — `on` records /tmp/nuit-idle-animation.active
+# and notifies QuickShell, `off` removes the file and notifies again. No sleep
+# loops, no background processes, so there is nothing to orphan. A second
+# `on` while already on is a no-op (prevents spawn storms from hypridle).
+# Missing QuickShell is not an error (`|| true`) — e.g. idle fires on the
+# login screen or before the shell starts.
+#
+# Override: if NUIT_IDLE_ANIM_CMD is set, it runs instead of the qs ipc call,
+# receiving `on`/`off` as its argument, e.g.
+#   NUIT_IDLE_ANIM_CMD="notify-send -a Nuit Idle" nuit-idle-animation on
+set -euo pipefail
+
+ACTIVE="/tmp/nuit-idle-animation.active"
+LOCKDIR="/tmp/nuit-idle-animation.lock"
+
+usage() { echo "Usage: $(basename "$0") on|off" >&2; exit 1; }
+
+notify() {
+    if [ -n "${NUIT_IDLE_ANIM_CMD:-}" ]; then
+        # shellcheck disable=SC2086
+        $NUIT_IDLE_ANIM_CMD "$1" >/dev/null 2>&1 || true
+    else
+        qs ipc call gsb setIdle "$1" >/dev/null 2>&1 || true
+    fi
+}
+
+cmd_on() {
+    [ -f "$ACTIVE" ] && exit 0    # already on — no-op against spawn storms
+    if ! mkdir "$LOCKDIR" 2>/dev/null; then
+        exit 0    # a concurrent `on` is mid-flight; state is (about to be) on
+    fi
+    trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
+    [ -f "$ACTIVE" ] && exit 0    # re-check under the lock, then commit
+    touch "$ACTIVE"
+    notify true
+}
+
+cmd_off() {
+    rm -f "$ACTIVE"
+    rmdir "$LOCKDIR" 2>/dev/null || true
+    notify false
+}
+
+case "${1:-}" in
+    on) cmd_on ;;
+    off) cmd_off ;;
+    *) usage ;;
+esac

@@ -22,6 +22,8 @@ Rectangle {
             wifiPassword = ""
             SysState.refreshNetwork()
             SysState.scanWifi()
+            SysState.refreshNetExtras()
+            SysState.refreshNearby()
         }
     }
     NumberAnimation {
@@ -113,7 +115,7 @@ Rectangle {
                     anchors.fill: parent
                     anchors.leftMargin: 8
                     anchors.rightMargin: 8
-                    Text { text: modelData.secured ? "▣" : "□"; color: modelData.connected ? Theme.green : Theme.dimText; font.pixelSize: 13 }
+                    Text { text: modelData.secured ? "" : ""; color: modelData.connected ? Theme.green : Theme.dimText; font.pixelSize: 13 }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
@@ -160,7 +162,7 @@ Rectangle {
             Layout.fillWidth: true
             visible: panel.selectedSsid !== ""
             implicitHeight: 32
-            radius: Theme.radiusSm
+            radius: Theme.radiusMd
             color: connMa.containsMouse ? Theme.hoverStrong : Theme.accent
             Text { anchors.centerIn: parent; text: "Connect"; color: Theme.accentText; font.pixelSize: 11; font.bold: true }
             MouseArea {
@@ -172,6 +174,108 @@ Rectangle {
                     SysState.connectWifi(panel.selectedSsid, panel.wifiPassword)
                     panel.selectedSsid = ""
                 }
+            }
+        }
+
+        // Captive portal: connected but staring at a login wall.
+        Rectangle {
+            visible: SysState.portalSuspected
+            Layout.fillWidth: true
+            implicitHeight: 44
+            radius: Theme.radiusLg
+            color: Theme.wellSoft
+            RowLayout {
+                anchors { fill: parent; leftMargin: 10; rightMargin: 10 }
+                spacing: 8
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: "Connected, but the internet may need a sign-in."
+                    color: Theme.yellow
+                    font { family: Theme.fontFamily; pixelSize: 10; bold: true }
+                }
+                Rectangle {
+                    implicitWidth: 86
+                    implicitHeight: 26
+                    radius: Theme.radiusMd
+                    color: portalMa.containsMouse ? Theme.hoverStrong : Theme.accent
+                    Text { anchors.centerIn: parent; text: "Open login"; color: Theme.accentText; font.pixelSize: 10; font.bold: true }
+                    MouseArea { id: portalMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: SysState.openPortal() }
+                }
+            }
+        }
+
+        // Addresses. Tap any row to copy it.
+        component NetRow: Rectangle {
+            id: nr
+            property string label
+            property string value
+            Layout.fillWidth: true
+            implicitHeight: 28
+            radius: Theme.radiusSm
+            color: nrMa.containsMouse ? Theme.hover : "transparent"
+            RowLayout {
+                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                Text { text: nr.label; color: Theme.dimText; font { family: Theme.fontFamily; pixelSize: 10 } }
+                Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignRight; text: nr.value === "" ? "—" : nr.value; elide: Text.ElideLeft; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 10 } }
+            }
+            MouseArea { id: nrMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; enabled: nr.value !== ""; onClicked: SysState.runCmd(["wl-copy", nr.value]) }
+        }
+        Text { text: "This machine"; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 11; bold: true } }
+        NetRow { label: "Local IP"; value: SysState.localIp }
+        NetRow { label: "Public IP"; value: SysState.publicIp }
+
+        // Who's eating the pipe, live-ish (3s samples, top 5).
+        Text {
+            visible: SysState.procRows.length > 0
+            text: "Bandwidth by process"
+            color: Theme.text
+            font { family: Theme.fontFamily; pixelSize: 11; bold: true }
+        }
+        Repeater {
+            model: SysState.procRows
+            delegate: RowLayout {
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: 8
+                Text { Layout.fillWidth: true; text: modelData.proc; elide: Text.ElideRight; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 10 } }
+                Text { text: "↓ " + SysState.fmtRate(modelData.rxRate); color: Theme.green; font { family: Theme.fontFamily; pixelSize: 10 } }
+                Text { text: "↑ " + SysState.fmtRate(modelData.txRate); color: Theme.blue; font { family: Theme.fontFamily; pixelSize: 10 } }
+            }
+        }
+
+        // Neighbors on the LAN, from the ARP table. No scanners, just asking nicely.
+        RowLayout {
+            Layout.fillWidth: true
+            Text {
+                Layout.fillWidth: true
+                text: SysState.nearbyScanning ? "Nearby devices — scanning…" : "Nearby devices"
+                color: Theme.text
+                font { family: Theme.fontFamily; pixelSize: 11; bold: true }
+            }
+            Rectangle {
+                implicitWidth: 72
+                implicitHeight: 24
+                radius: Theme.radiusSm
+                color: nbMa.containsMouse ? Theme.hover : Theme.inactiveBg
+                Text { anchors.centerIn: parent; text: "Refresh"; color: Theme.text; font.pixelSize: 10 }
+                MouseArea { id: nbMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: SysState.refreshNearby() }
+            }
+        }
+        Repeater {
+            model: SysState.nearbyHosts
+            delegate: Rectangle {
+                required property var modelData
+                Layout.fillWidth: true
+                implicitHeight: 28
+                radius: Theme.radiusSm
+                color: nbRowMa.containsMouse ? Theme.hover : "transparent"
+                RowLayout {
+                    anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                    Text { Layout.fillWidth: true; text: modelData.host !== "" ? modelData.host : modelData.ip; elide: Text.ElideRight; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 10 } }
+                    Text { text: modelData.ip; color: Theme.dimText; font { family: Theme.fontFamily; pixelSize: 10 } }
+                }
+                MouseArea { id: nbRowMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: SysState.runCmd(["wl-copy", modelData.ip]) }
             }
         }
     }

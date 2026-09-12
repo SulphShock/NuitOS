@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
-import Quickshell.Services.Mpris
 import Quickshell.Services.Notifications
 
 Singleton {
@@ -12,20 +11,42 @@ Singleton {
 
     // ─────────────────────────── UI state ───────────────────────────
     property bool qsOpen: false
-    property bool calOpen: false
     property bool actOpen: false
     property bool settingsOpen: false
     property bool remOpen: false
     property bool btOpen: false
     property bool wifiOpen: false
+    property bool capOpen: false
+    property bool ytOpen: false
+    property bool planOpen: false
+    property bool calOpen: false
+    property bool notifOpen: false
+    property bool idleDim: false
     property string username: "user"
-    function closeAll() { qsOpen = calOpen = actOpen = settingsOpen = remOpen = btOpen = wifiOpen = false }    function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
+    function closeAll() { qsOpen = actOpen = settingsOpen = remOpen = btOpen = wifiOpen = capOpen = ytOpen = planOpen = calOpen = notifOpen = false }    function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
+    function togglePlan()       { const v = planOpen;  closeAll(); planOpen  = !v }
     function toggleCalendar()   { const v = calOpen;   closeAll(); calOpen   = !v }
+    function toggleNotifs() {
+        const v = notifOpen
+        closeAll()
+        notifOpen = !v
+        if (!v) notifRead = notifications.length
+    }
     function toggleActivities() { const v = actOpen;   closeAll(); actOpen   = !v }
     function toggleSettings()   { const v = settingsOpen; closeAll(); settingsOpen = !v }
     function toggleReminders()  { const v = remOpen;    closeAll(); remOpen    = !v }
     function toggleBluetooth()  { const v = btOpen;    closeAll(); btOpen    = !v }
     function toggleWifi()       { const v = wifiOpen;  closeAll(); wifiOpen  = !v }
+    function toggleCaptureBoard() { const v = capOpen; closeAll(); capOpen   = !v }
+    function toggleYouTubeMusic() { const v = ytOpen; closeAll(); ytOpen = !v }
+    // Browser-tab finder: focuses a music.youtube.com tab in any window,
+    // or opens one fresh when nothing's around.
+    function ytTab() {
+        runCmd([(Quickshell.env("HOME") || ("/home/" + root.username)) + "/.config/quickshell/lib/yt-tab.sh"])
+    }
+    function setIdle(on) { idleDim = on ? true : false; if (on) closeAll() }
+    // Manual screensaver (Power dialog) → same overlay hypridle uses
+    function screensaver() { setIdle(true) }
 
     // ─────────────────── First-run welcome (once per user) ───────────────────
     // Shown 5s after shell start when ~/.config/nuit/.welcomed is absent.
@@ -65,15 +86,28 @@ Singleton {
     readonly property var  battery: UPower.displayDevice
     readonly property int  batteryPct: Math.round((battery?.percentage ?? 0) * 100)
     readonly property bool charging: battery?.state === UPowerDeviceState.Charging
-
-    // ─────────────────────────── Media (MPRIS, native) ───────────────────────────
-    readonly property var player:
-        Mpris.players.values.find(p => p.playbackState === MprisPlaybackState.Playing)
-        ?? Mpris.players.values[0] ?? null
-
+    // Evenings out: "2h 14m left" / "38m till full". Empty when unknown.
+    function fmtDur(s) {
+        s = Math.round(s)
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60)
+        return h > 0 ? h + "h " + m + "m" : m + "m"
+    }
+    readonly property string batteryEta: {
+        if (!root.battery) return ""
+        if (root.charging) {
+            const t = root.battery.timeToFull ?? 0
+            return t > 90 ? "· " + fmtDur(t) + " till full" : ""
+        }
+        const t = root.battery.timeToEmpty ?? 0
+        return t > 90 ? "· " + fmtDur(t) + " left" : ""
+    }
     // ─────────────────────────── Notifications (native server) ─────────────────────
     property bool dnd: false
     property var notifications: []
+    // Badge math: everything arrived since the panel was last opened.
+    // DND only quiets the badge; the list keeps everything.
+    property int notifRead: 0
+    readonly property int notifUnread: dnd ? 0 : Math.max(0, notifications.length - notifRead)
     NotificationServer {
         keepOnReload: false
         actionsSupported: true
@@ -198,6 +232,141 @@ Singleton {
         }
     }
 
+    // ─────── Network extras: portal, IPs, talkers, neighbors ───────
+    property string localIp: ""
+    property string publicIp: ""
+    property bool portalSuspected: false
+    property var procRows: []
+    property var nearbyHosts: []
+    property bool nearbyScanning: false
+    property var procPrev: ({})
+    property double procPrevAt: 0
+
+    function refreshNetExtras() {
+        ipProc.running = true
+        pubProc.running = true
+        portalProc.running = true
+    }
+    Process {
+        id: ipProc
+        command: ["sh", "-c", "hostname -I 2>/dev/null | cut -d' ' -f1"]
+        stdout: StdioCollector {
+            onStreamFinished: root.localIp = text.trim()
+        }
+    }
+    Process {
+        id: pubProc
+        command: ["curl", "-s", "--max-time", "5", "https://api.ipify.org"]
+        stdout: StdioCollector { onStreamFinished: root.publicIp = text.trim() }
+    }
+    // Same check Android uses: anything but 204 while connected = login wall.
+    Process {
+        id: portalProc
+        command: ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", "http://connectivitycheck.gstatic.com/generate_204"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const c = text.trim()
+                root.portalSuspected = !(c === "" || c === "000" || c === "204")
+            }
+        }
+    }
+    function openPortal() { runCmd(["xdg-open", "http://connectivitycheck.gstatic.com/generate_204"]) }
+    Timer {
+        interval: 30000; repeat: true
+        running: root.wifiOpen && (root.wifiSsid !== "" || root.wired)
+        triggeredOnStart: true
+        onTriggered: portalProc.running = true
+    }
+    // Per-process traffic from ss: pair each socket with its process and
+    // byte counters, diff cumulatives for rates. TCP only, top 5 talkers.
+    Process {
+        id: ssProc
+        command: ["ss", "-tip"]
+        stdout: StdioCollector { onStreamFinished: root.ingestSs(text) }
+    }
+    function ingestSs(text) {
+        const totals = {}
+        let cur = null
+        for (const line of text.split("\n")) {
+            if (line === "" || /^\s*State/.test(line)) continue
+            if (!/^\s/.test(line)) { cur = null; continue }
+            let m = line.match(/users:\(\("([^"]+)",pid=(\d+)/)
+            if (m) { cur = m[1]; if (!totals[cur]) totals[cur] = { rx: 0, tx: 0 }; continue }
+            if (cur) {
+                m = line.match(/bytes_acked:(\d+)/)
+                if (m) totals[cur].tx += parseInt(m[1])
+                m = line.match(/bytes_received:(\d+)/)
+                if (m) totals[cur].rx += parseInt(m[1])
+            }
+        }
+        const now = Date.now() / 1000
+        const rows = []
+        if (root.procPrevAt > 0) {
+            const dt = Math.max(1, now - root.procPrevAt)
+            for (const k in totals) {
+                const p = root.procPrev[k] || { rx: 0, tx: 0 }
+                const rx = Math.max(0, (totals[k].rx - p.rx) / dt)
+                const tx = Math.max(0, (totals[k].tx - p.tx) / dt)
+                if (rx + tx > 0) rows.push({ proc: k, rxRate: rx, txRate: tx })
+            }
+            rows.sort((a, b) => (b.rxRate + b.txRate) - (a.rxRate + a.txRate))
+        }
+        root.procPrev = totals
+        root.procPrevAt = now
+        root.procRows = rows.slice(0, 5)
+    }
+    function fmtRate(b) {
+        if (b < 1024) return Math.round(b) + " B/s"
+        if (b < 1048576) return (b / 1024).toFixed(1) + " KB/s"
+        return (b / 1048576).toFixed(2) + " MB/s"
+    }
+    Timer {
+        interval: 3000; repeat: true
+        running: root.wifiOpen
+        triggeredOnStart: true
+        onTriggered: ssProc.running = true
+    }
+    // Neighbors: whoever ARP knows about, plus hostnames where they exist.
+    function refreshNearby() {
+        root.nearbyScanning = true
+        neighProc.running = true
+    }
+    Process {
+        id: neighProc
+        command: ["ip", "neigh", "show"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const rows = []
+                for (const line of text.trim().split("\n")) {
+                    const m = line.match(/^(\S+)\s+dev\s+(\S+)\s+lladdr\s+([0-9a-fA-F:]+)\s+(\S+)/)
+                    if (!m || m[1].indexOf(":") >= 0) continue
+                    if (m[4] === "FAILED" || m[4] === "INCOMPLETE") continue
+                    rows.push({ ip: m[1], host: "", mac: m[3] })
+                }
+                root.nearbyHosts = rows
+                if (rows.length > 0) {
+                    hostProc.command = ["getent", "hosts"].concat(rows.map(r => r.ip))
+                    hostProc.running = true
+                } else root.nearbyScanning = false
+            }
+        }
+    }
+    Process {
+        id: hostProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const names = {}
+                for (const line of text.trim().split("\n")) {
+                    const p = line.trim().split(/\s+/)
+                    if (p.length >= 2) names[p[0]] = p[1]
+                }
+                root.nearbyHosts = root.nearbyHosts.map(r => ({ ip: r.ip, host: names[r.ip] || "", mac: r.mac }))
+                root.nearbyScanning = false
+            }
+        }
+        onExited: root.nearbyScanning = false
+    }
+
     // ─────────────────────────── Bluetooth (bluetoothctl) ───────────────────────────
     property bool btPowered: false
     property var btDevices: []            // every known device {address, name}
@@ -241,6 +410,30 @@ Singleton {
         root.btConnected = connected
         root.btPaired = paired
         root.btAvailable = available
+        root.refreshBtBatteries()
+    }
+    // Per-device battery, for hardware that reports it. BlueZ prints it in
+    // `bluetoothctl info`; queried on panel open, not polled.
+    property var btBatteries: ({})
+    function refreshBtBatteries() {
+        if (btBattProc.running) return
+        const addrs = btConnected.map(d => d.address)
+        if (addrs.length === 0) { btBatteries = {}; return }
+        btBattProc.command = ["sh", "-c", 'for a in ' + addrs.join(" ") + '; do p=$(bluetoothctl info "$a" 2>/dev/null | grep "Battery Percentage" | grep -o "([0-9]*%)" | tr -d "()%"); echo "$a ${p:-}"; done']
+        btBattProc.running = true
+    }
+    Process {
+        id: btBattProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = {}
+                for (const line of text.trim().split("\n")) {
+                    const p = line.split(" ")
+                    if (p.length === 2 && p[1] !== "") m[p[0]] = p[1]
+                }
+                root.btBatteries = m
+            }
+        }
     }
     function btAction(address, action) {
         btError = ""
@@ -339,6 +532,56 @@ Singleton {
         }
     }
 
+    // ─────────── Pinned auto-reconnect (the one the stock widget lacks) ───────────
+    // Starred devices get retried every 20s (60s cooldown each) whether any
+    // panel is open or not — covers out-of-range radios and post-sleep drops.
+    // Pins live at ~/.local/share/nuit/bt-pins.json as ["AA:BB:…"].
+    property var btPins: []
+    property var btCooldown: ({})
+    readonly property string btPinsFile: (Quickshell.env("HOME") || ("/home/" + root.username)) + "/.local/share/nuit/bt-pins.json"
+    function isPinned(addr) { return btPins.indexOf(addr) >= 0 }
+    function togglePin(addr) {
+        btPins = isPinned(addr) ? btPins.filter(a => a !== addr) : btPins.concat([addr])
+        saveBtPins()
+    }
+    function saveBtPins() {
+        pinsWrite.path = root.btPinsFile
+        pinsWrite.setText(JSON.stringify(btPins))
+    }
+    FileView {
+        id: pinsWrite
+        atomicWrites: true
+    }
+    FileView {
+        id: pinsLoad
+        path: root.btPinsFile
+        watchChanges: true
+        onLoaded: {
+            try {
+                const arr = JSON.parse(text)
+                if (Array.isArray(arr)) root.btPins = arr.filter(a => typeof a === "string")
+            } catch (e) { root.btPins = [] }
+        }
+    }
+    Process { id: btPinConnect }
+    Timer {
+        interval: 20000; repeat: true; running: true; triggeredOnStart: true
+        onTriggered: {
+            if (btPinConnect.running || btPins.length === 0) return
+            const now = Date.now()
+            const live = {}
+            for (const d of btConnected) live[d.address] = true
+            for (const addr of btPins) {
+                if (live[addr]) continue
+                if (now - (btCooldown[addr] || 0) < 60000) continue
+                btCooldown[addr] = now
+                btPinConnect.command = ["bluetoothctl", "connect", addr]
+                btPinConnect.running = true
+                break   // one in flight at a time
+            }
+        }
+    }
+
     // ─────────────────────────── Brightness (via brightnessctl/logind) ─────────────
     property real brightness: 0.7
     property int blMax: 1
@@ -400,11 +643,45 @@ Singleton {
 
     // ─────────────────────────── Night Light (gammastep) ────────────────────────────
     property bool nightLight: false
-    Process { id: nlStart; command: ["gammastep", "-O", "4500K"] }
+    Process { id: nlStart; command: ["gammastep", "-m", "wayland", "-O", "4500K"] }
     Process { id: nlStop;  command: ["pkill", "gammastep"] }
     function setNightLight(on) {
         nightLight = on
         on ? (nlStart.running = true) : (nlStop.running = true)
+    }
+
+    // ─────────────────────── OS update center ───────────────────────
+    // Counts pending pacman+AUR updates (yay checks unprivileged) and
+    // launches the full refresh — clock, pacman, AUR, flatpak — in a
+    // terminal so sudo + confirmations stay visible.
+    property int pendingUpdates: -1   // -1 = haven't checked yet
+    property double lastUpdateCheck: 0
+    readonly property string updateSubtitle: pendingUpdates < 0 ? "Checking…"
+        : pendingUpdates === 0 ? "Up to date" : pendingUpdates + " waiting"
+    Process {
+        id: updCheck
+        command: ["sh", "-c", "yay -Qu 2>/dev/null | wc -l"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const n = parseInt(text.trim())
+                root.pendingUpdates = isNaN(n) ? 0 : n
+                root.lastUpdateCheck = Date.now()
+            }
+        }
+        onExited: code => { if (code !== 0) { root.pendingUpdates = 0; root.lastUpdateCheck = Date.now() } }
+    }
+    function checkUpdates() { updCheck.running = true }
+    // Gentle throttle: UI entry points re-check at most every 30 min.
+    function maybeRefreshUpdates() {
+        if (Date.now() - lastUpdateCheck > 30 * 60000) checkUpdates()
+    }
+    function runOsUpdate() {
+        const script = (Quickshell.env("HOME") || ("/home/" + root.username)) + "/.config/quickshell/lib/os-update.sh"
+        runCmd(["ghostty", "-e", script])
+    }
+    Timer {
+        interval: 6 * 3600000; repeat: true; running: true; triggeredOnStart: true
+        onTriggered: root.checkUpdates()
     }
 
     // ──────────────────────── logind actions + app launcher ─────────────────────────

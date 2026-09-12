@@ -1,4 +1,5 @@
 #!/bin/bash
+# The big red button: builds the ISO, optionally flashes it. sudo required, courage recommended.
 # nuit-release — build the NuitOS ISO and (optionally) flash it to a USB stick.
 #
 # Usage:
@@ -66,12 +67,15 @@ if [ "$MODE" = "full" ]; then
     check_same "$REPO/configs/bin/nuit-capture-menu"  "$REPO/iso/airootfs/usr/local/bin/nuit-capture-menu"
     check_same "$REPO/configs/bin/nuit-screenrecord"  "$REPO/iso/airootfs/usr/local/bin/nuit-screenrecord"
     check_same "$REPO/configs/bin/nuit-screenshot"    "$REPO/iso/airootfs/usr/local/bin/nuit-screenshot"
+    check_same "$REPO/configs/bin/nuit-wallpaper-flare" "$REPO/iso/airootfs/usr/local/bin/nuit-wallpaper-flare"
     check_same "$REPO/scripts/nuit-random-wallpaper.sh" "$REPO/iso/airootfs/usr/local/bin/nuit-random-wallpaper"
     for t in nuit-theme-bg-set nuit-theme-bg-next nuit-theme-bg-folder nuit-theme-bg-current; do
         check_same "$REPO/scripts/$t" "$REPO/iso/airootfs/usr/local/bin/$t"
     done
     check_same "$REPO/configs/hyprland/hyprland.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprland.conf"
-    for d in quickshell ghostty nvim fastfetch Branding; do
+    check_same "$REPO/configs/hypridle/hypridle.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hypridle.conf"
+    check_same "$REPO/configs/bin/nuit-idle-animation" "$REPO/iso/airootfs/usr/local/bin/nuit-idle-animation"
+    for d in quickshell ghostty nvim fastfetch Branding gammastep; do
         diff -rq "$REPO/configs/$d" "$REPO/iso/airootfs/etc/skel/.config/$d" >/dev/null 2>&1 \
             || { warn "drift: configs/$d != skel .config/$d"; drift=1; }
     done

@@ -1,4 +1,5 @@
 #!/bin/bash
+# Feeling indecisive? same. random wallpaper, remembered.
 # nuit-random-wallpaper — set a random NuitOS background (persisted).
 #
 # Picks from the user's imported themes (~/.config/nuit/backgrounds) with the

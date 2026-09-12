@@ -1,4 +1,5 @@
 #!/bin/bash
+# Screenshots via grim + slurp. say cheese.
 # nuit-screenshot — Nuit screenshots (grim + slurp backend)
 # Usage: nuit-screenshot [region|window|fullscreen] [both|copy|save]
 #   region      drag a box                                            (default)

@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
-import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
 import ".."
@@ -27,12 +26,6 @@ PanelWindow {
     }
 
     // ── status icon resolution ──
-    readonly property string volIcon:
-        SysState.muted || SysState.volume <= 0.01 ? "audio-volume-muted-symbolic"
-      : SysState.volume < 0.33 ? "audio-volume-low-symbolic"
-      : SysState.volume < 0.66 ? "audio-volume-medium-symbolic"
-      : "audio-volume-high-symbolic"
-
     readonly property string netIcon: {
         if (SysState.wifiSsid !== "") {
             const s = SysState.wifiStrength
@@ -48,10 +41,6 @@ PanelWindow {
 
     readonly property string netLabel: SysState.wired ? "LAN"
         : SysState.wifiSsid !== "" ? "Wi-Fi" : "Off"
-    readonly property string volumeLabel: SysState.muted
-        ? "Mute" : Math.round(SysState.volume * 100) + "%"
-    readonly property string batteryLabel: Math.max(0, Math.min(100, SysState.batteryPct))
-        + "%" + (SysState.charging ? "+" : "")
     readonly property string battIcon: {
         const p = Math.max(0, Math.min(100, SysState.batteryPct))
         // Adwaita ships battery-level-{20..100} (+charging); low charge
@@ -79,19 +68,16 @@ PanelWindow {
         target: Hyprland
         function onRawEvent() { bar.workspaceRevision++ }
     }
-    Process { id: workspaceSwitch }
-
+    // NOTE (Hyprland 0.55+ Lua): plain `hyprctl dispatch workspace N` no
+    // longer works — dispatch is shorthand for eval 'hl.dispatch(...)'.
+    // Send Lua directly over the native Hyprland socket instead of hyprctl.
     function switchWorkspace(target) {
-        workspaceSwitch.command = ["hyprctl", "dispatch",
-            "workspace", String(target)]
-        workspaceSwitch.running = true
+        Hyprland.dispatch("hl.dsp.focus({ workspace = " + target + " })")
     }
 
     function cycleWorkspace(direction) {
-        const target = direction > 0 ? "e+1" : "e-1"
-        workspaceSwitch.command = ["hyprctl", "dispatch",
-            "workspace", target]
-        workspaceSwitch.running = true
+        Hyprland.dispatch(direction > 0 ? 'hl.dsp.focus({ workspace = "e+1" })'
+                                        : 'hl.dsp.focus({ workspace = "e-1" })')
     }
 
     // Fade + scale burp whenever a status icon needs attention
@@ -259,18 +245,46 @@ PanelWindow {
         }
     }
 
-    // ── CENTER: clock + date (GNOME parity) ──
-    PillButton {
-        id: clockPill
-        property string timeText: {
-            SysState.clock.seconds          // per-second refresh dependency
-            const d = new Date()
-            return Qt.formatDate(d, "ddd MMM d  ") + Qt.formatTime(d, "h:mm AP")
-        }
+    // ── CENTER: vinyl + camera left of time, alarm + planner right ──
+    // One centered row: launcher, workspaces, [gap] vinyl camera TIME alarm
+    // calendar [gap] bell wifi bluetooth battery. Time sits dead center.
+    Row {
         anchors { horizontalCenter: parent.horizontalCenter; verticalCenter: parent.verticalCenter }
-        label: timeText
-        active: SysState.calOpen
-        onClicked: SysState.toggleCalendar()
+        height: Theme.barHeight
+        spacing: 4
+        Vinyl {
+            anchors.verticalCenter: parent.verticalCenter
+        }
+        StatusIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            source: Theme.icon("camera-photo-symbolic")
+            onClicked: SysState.toggleCaptureBoard()
+        }
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            text: {
+                SysState.clock.seconds          // per-second refresh dependency
+                return Qt.formatTime(new Date(), "h:mm AP")
+            }
+            color: Theme.text
+            font { family: Theme.fontFamily; pixelSize: Theme.fontPx; bold: true }
+        }
+        StatusIcon {
+            id: alarmBtn
+            anchors.verticalCenter: parent.verticalCenter
+            source: Theme.icon("alarm-symbolic")
+            tint: SysState.reminders.length > 0 ? Theme.accent : Theme.foreground
+            onClicked: SysState.toggleReminders()
+            Connections {
+                target: SysState
+                function onRemindersChanged() { alarmBtn.pulse() }
+            }
+        }
+        StatusIcon {
+            anchors.verticalCenter: parent.verticalCenter
+            source: Theme.icon("x-office-calendar-symbolic")
+            onClicked: SysState.togglePlan()
+        }
     }
 
     // ── RIGHT: unified GNOME status button ──
@@ -297,7 +311,38 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: 2
 
-            // Network — click to open Quick Settings.
+            // Bell — unread count, opens the notification center.
+            Rectangle {
+                id: bellBtn
+                width: SysState.notifUnread > 0 ? 32 : 18
+                height: 18
+                radius: 9
+                color: bellMa.containsMouse
+                    ? (statusPill.color === Theme.accent ? Theme.hoverStrong : Theme.hover)
+                    : "transparent"
+                Behavior on color { ColorAnimation { duration: 100 } }
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 3
+                    WhiteIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        size: 12
+                        source: Theme.icon("preferences-system-notifications-symbolic")
+                        tint: statusPill.color === Theme.accent ? Theme.accentText
+                            : SysState.notifUnread > 0 ? Theme.accent : Theme.foreground
+                    }
+                    Text {
+                        visible: SysState.notifUnread > 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: SysState.notifUnread > 9 ? "9+" : String(SysState.notifUnread)
+                        color: statusPill.color === Theme.accent ? Theme.accentText : Theme.accent
+                        font { family: Theme.fontFamily; pixelSize: 9; bold: true }
+                    }
+                }
+                MouseArea { id: bellMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: SysState.toggleNotifs() }
+            }
+
+            // Network — click opens the Wi-Fi panel.
             // Dim when offline entirely (no SSID and no wire) so the
             // radio-on-but-disconnected state reads differently from Off.
             StatusIcon {
@@ -306,7 +351,7 @@ PanelWindow {
                 tint: (SysState.wifiSsid === "" && !SysState.wired)
                     ? Theme.dimText
                     : (statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground)
-                onClicked: SysState.toggleQs()
+                onClicked: SysState.toggleWifi()
                 Connections {
                     target: SysState
                     function onWifiSsidChanged() { netBtn.pulse() }
@@ -315,20 +360,20 @@ PanelWindow {
                 }
             }
 
-            // Volume — click to mute/unmute, scroll to change level
+            // Bluetooth — click opens the devices panel
             StatusIcon {
-                id: volBtn
-                source: Theme.icon(bar.volIcon)
-                tint: statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground
-                onClicked: SysState.toggleMute()
-                onWheelAdjusted: direction => SysState.setVolume(SysState.volume + direction * 0.05)
+                id: btBtn
+                source: Theme.icon(SysState.btPowered ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic")
+                tint: SysState.btConnected.length > 0 ? Theme.green
+                    : (statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground)
+                onClicked: SysState.toggleBluetooth()
                 Connections {
                     target: SysState
-                    function onMutedChanged() { volBtn.pulse() }
+                    function onBtConnectedChanged() { btBtn.pulse() }
                 }
             }
 
-            // Battery — click opens Quick Settings
+            // Battery — rightmost, click opens Quick Settings
             StatusIcon {
                 id: battBtn
                 source: Theme.icon(bar.battIcon)
@@ -340,34 +385,20 @@ PanelWindow {
                 }
             }
 
-            // Brightness — scroll to adjust, click opens Quick Settings slider.
-            // Hidden where no backlight device exists (VMs, some desktops).
+            // Night light moon — only up while gammastep warms the screen.
+            // Clicking it turns the warmth back off. Trails the row.
             StatusIcon {
-                id: briBtn
-                visible: SysState.hasBacklight
-                source: Theme.icon("display-brightness-symbolic")
-                tint: statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground
-                onClicked: SysState.toggleQs()
-                onWheelAdjusted: direction => SysState.setBrightness(SysState.brightness + direction * 0.05)
+                id: moonBtn
+                visible: SysState.nightLight
+                source: Theme.icon("weather-clear-night-symbolic")
+                tint: statusPill.color === Theme.accent ? Theme.accentText : Theme.yellow
+                onClicked: SysState.setNightLight(false)
                 Connections {
                     target: SysState
-                    function onBrightnessChanged() { briBtn.pulse() }
+                    function onNightLightChanged() { if (SysState.nightLight) moonBtn.pulse() }
                 }
             }
 
-            // Reminders — click opens the reminders panel
-            StatusIcon {
-                id: remBtn
-                source: Theme.icon("alarm-symbolic")
-                tint: SysState.reminders.length > 0
-                    ? (statusPill.color === Theme.accent ? Theme.accentText : Theme.accent)
-                    : (statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground)
-                onClicked: SysState.toggleReminders()
-                Connections {
-                    target: SysState
-                    function onRemindersChanged() { remBtn.pulse() }
-                }
-            }
         }
     }
 }

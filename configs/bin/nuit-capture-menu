@@ -1,4 +1,5 @@
 #!/bin/bash
+# Everything worth capturing hides behind this menu.
 # nuit-capture-menu — Nuit capture menu (Super+Ctrl+C)
 # fuzzel picker over screenshot / record / extract / color actions.
 set -euo pipefail

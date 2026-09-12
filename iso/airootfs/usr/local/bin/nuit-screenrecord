@@ -1,4 +1,5 @@
 #!/bin/bash
+# Lights, camera, GPU. run again to stop.
 # nuit-screenrecord — toggle screen recording (gpu-screen-recorder)
 # Usage: nuit-screenrecord [region|fullscreen]
 #   No args + running  → stop recording, notify with file path

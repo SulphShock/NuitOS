@@ -1,10 +1,11 @@
 import QtQuick
 import QtQuick.Effects
+import ".."
 
 Item {
     id: root
     property url source
-    property color tint: "#EBDBB2"
+    property color tint: Theme.foreground
     property real size: 20
     implicitWidth: size
     implicitHeight: size

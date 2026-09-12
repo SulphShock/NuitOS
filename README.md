@@ -127,6 +127,40 @@ exec-once = # commented out
 
 Use waybar, eww, or nothing.
 
+### 💤 Idle (hypridle)
+
+Leave the machine alone and it dims itself: after 5 idle minutes a slow
+fade drifts over the screen, after 10 it locks, after 15 the display sleeps,
+after 30 the machine suspends. Any key or mouse wiggle resets the timers.
+
+- **Config lives in two places (kept identical):**
+  `configs/hypridle/hypridle.conf` (edit this one) and
+  `~/.config/hypr/hypridle.conf` (the live copy on the ISO/installed system).
+- **Change the idle timeout:** edit the first `timeout = 300` (seconds —
+  `600` = 10 min) in `configs/hypridle/hypridle.conf`, then rebuild.
+- **The animation itself** is `nuit-idle-animation` (`configs/bin/`) talking
+  to `configs/quickshell/widgets/IdleOverlay.qml` via
+  `qs ipc call gsb setIdle true|false`.
+- **Disable a stage:** comment out its whole `listener { ... }` block. To
+  turn idle handling off entirely, comment out `exec-once = hypridle` in
+  `configs/hyprland/hyprland.conf`.
+- **Add a stage:** copy a `listener` block and change the timeout + command
+  (keep timeouts in ascending order). Each block documents its own knob.
+
+### 🌙 Night Light (gammastep)
+
+Warms the screen after dark so late sessions are easier on the eyes
+(one-shot 4500K overlay via `gammastep -m wayland -O 4500K`; killing it reverts).
+
+- **Toggle:** top bar → Quick Settings → Night Light, or
+  `qs ipc call gsb toggleNightLight`.
+- **Config:** `configs/gammastep/config.ini` (edit this one) mirrors to
+  `~/.config/gammastep/config.ini` — day 6500K, night 4500K; lower
+  `temp-night` (e.g. 3500K) for a warmer screen.
+- **Automatic sunset/sunrise:** set your `lat`/`lon` in the `[manual]`
+  section (example Paris: `lat=48.9`, `lon=2.4`); leave `0.0`/`0.0` to
+  stay manual and use the toggle only.
+
 ---
 
 ## 🛠️ Building
@@ -174,6 +208,8 @@ sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 **Also ships:** `firefox`, `gimp`, `file-roller` — a bootable, day-one desktop. Media plays via `mpv`; notes, chat, and anything else via `yay`.
 
 **Developers:** the ISO ships `base-devel` (C toolchain) but not `nodejs`/`npm`/`cmake` — install them post-setup with `yay -S nodejs npm cmake` if your editor plugins need them.
+
+**Editor:** neovim uses gruvbox-dark (hard) with `Super+F` for files (`Space f` works everywhere as fallback), arrow keys in the tree (`n` rename, `a` new, `dd` delete, `r` refresh). Treesitter parsers install on demand with `:TSInstallNuit`. LSP starts only for servers you have installed — silence there means "not installed," not "broken".
 
 ---
 
@@ -239,6 +275,15 @@ Issues, feature requests, and PRs welcome.
 **Keep it honest.** If something's broken, say so. If it's a workaround, document why.
 
 ---
+
+## 🙏 Honorable mentions
+
+Thanks to the MIT projects this shell learned from. Code names what it does. Full sources in `configs/quickshell/NOTICE.md`.
+
+- BibekBhusal0/omarchy-better-menu - launcher fuzzy ideas
+- itsdotdev/omarchy-youtube-music - music backend ideas
+- 3EYE3Y3/omarchy-capture-board - capture converter ideas
+- brvier/PlanovaQuickShell + Planova - day file format
 
 ## 📜 License
 

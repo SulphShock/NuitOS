@@ -16,6 +16,7 @@ Rectangle {
             panelIn.restart()
             SysState.refreshBt()
             SysState.scanBluetooth()
+            SysState.refreshBtBatteries()
         }
     }
     NumberAnimation {
@@ -61,17 +62,31 @@ Rectangle {
                     anchors.fill: parent
                     anchors.leftMargin: 8
                     anchors.rightMargin: 8
-                    Text { text: "ᛒ"; color: isLive ? Theme.green : Theme.foreground; font.pixelSize: 15 }
+                    Text { text: ""; color: isLive ? Theme.green : Theme.foreground; font.pixelSize: 15 }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 0
                         Text { Layout.fillWidth: true; text: modelData.name; color: Theme.text; elide: Text.ElideRight; font { family: Theme.fontFamily; pixelSize: 11; bold: true } }
-                        Text { Layout.fillWidth: true; text: isLive ? "Connected" : modelData.address; color: isLive ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9 } }
+                        Text { Layout.fillWidth: true; text: isLive ? ("Connected" + (SysState.btBatteries[modelData.address] ? " · " + SysState.btBatteries[modelData.address] + "%" : "")) : modelData.address; color: isLive ? Theme.green : Theme.dimText; font { family: Theme.fontFamily; pixelSize: 9 } }
                     }
                     Text {
                         text: modelData.action === "disconnect" ? "Connected" : modelData.action === "pair" ? "Pair" : "Connect"
                         color: isLive ? Theme.green : Theme.accent
                         font { family: Theme.fontFamily; pixelSize: 9; bold: true }
+                    }
+                    // Pin star: remembered devices only, always visible so
+                    // pinned state reads at a glance. Starred ones auto-reconnect.
+                    Text {
+                        visible: modelData.action !== "pair"
+                        text: SysState.isPinned(modelData.address) ? "" : ""
+                        color: SysState.isPinned(modelData.address) ? Theme.yellow : Theme.dimText
+                        font.pixelSize: 14
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: SysState.togglePin(modelData.address)
+                        }
                     }
                 }
                 MouseArea {

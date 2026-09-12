@@ -12,10 +12,7 @@ Rectangle {
     radius: Theme.radiusLg
     color: Theme.menuBg
     property int section: 0
-    property bool asciiMode: true
     property string wallpaperPath: ""
-    property string screensaverImage: ""
-    property string customAscii: "01001001\n  SULPHSHEL\n01010110"
     property var wallpapers: []
     property string currentWallpaper: ""
     property var themes: []
@@ -113,13 +110,10 @@ Rectangle {
         title: "Choose an image"
         nameFilters: ["Images (*.png *.jpg *.jpeg *.webp)"]
         onAccepted: {
-            if (panel.section === 1) panel.screensaverImage = selectedFile.toString()
-            else {
-                // Import into the Nuit backgrounds dir and apply live
-                const src = String(selectedFile).replace("file://", "")
-                wpApply.command = ["sh", "-c", "cp -n \"" + src.replace(/"/g, "") + "\" \"$HOME/.config/nuit/backgrounds/default/\" 2>/dev/null; " + bgScript("nuit-theme-bg-set", src.replace(/"/g, ""))[2]]
-                wpApply.running = true
-            }
+            // Import into the Nuit backgrounds dir and apply live
+            const src = String(selectedFile).replace("file://", "")
+            wpApply.command = ["sh", "-c", "cp -n \"" + src.replace(/"/g, "") + "\" \"$HOME/.config/nuit/backgrounds/default/\" 2>/dev/null; " + bgScript("nuit-theme-bg-set", src.replace(/"/g, ""))[2]]
+            wpApply.running = true
         }
     }
     function chooseImage() {
@@ -155,7 +149,7 @@ Rectangle {
                 }
                 Rectangle { width: parent.width; height: 1; color: Theme.outline }
                 Repeater {
-                    model: ["Theme", "Screensaver", "Wallpaper"]
+                    model: ["Theme", "Wallpaper"]
                     delegate: Rectangle {
                         required property string modelData
                         required property int index
@@ -186,6 +180,14 @@ Rectangle {
                     font { family: Theme.fontFamily; pixelSize: 10 }
                     MouseArea { anchors.fill: parent; onClicked: SysState.launch("xdg-open https://github.com/SulphShock/NuitOS") }
                 }
+                Text {
+                    width: parent.width
+                    wrapMode: Text.Wrap
+                    text: "More wallpapers → wallpaperflare.com"
+                    color: Theme.dimText
+                    font { family: Theme.fontFamily; pixelSize: 10 }
+                    MouseArea { anchors.fill: parent; onClicked: SysState.launch("xdg-open https://www.wallpaperflare.com/") }
+                }
             }
         }
 
@@ -194,7 +196,7 @@ Rectangle {
             Layout.fillHeight: true
             spacing: 12
             Text {
-                text: ["Theme", "Screensaver", "Wallpaper"][panel.section]
+                text: ["Theme", "Wallpaper"][panel.section]
                 color: Theme.text
                 font { family: Theme.fontFamily; pixelSize: 18; bold: true }
             }
@@ -267,42 +269,6 @@ Rectangle {
 
             Rectangle {
                 visible: panel.section === 1
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: Theme.radiusMd
-                color: Theme.inactiveBg
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 12
-                    Text { text: "Screensaver content"; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 13; bold: true } }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ShellButton { text: "ASCII Art"; checkable: true; checked: panel.asciiMode; onClicked: panel.asciiMode = true }
-                        ShellButton { text: "Image"; checkable: true; checked: !panel.asciiMode; onClicked: panel.asciiMode = false }
-                        ShellButton { visible: !panel.asciiMode; text: "Upload image"; onClicked: panel.chooseImage() }
-                    }
-                    TextArea {
-                        visible: panel.asciiMode
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 110
-                        text: panel.customAscii
-                        placeholderText: "Enter custom ASCII art"
-                        wrapMode: TextEdit.NoWrap
-                        font { family: Theme.fontFamily; pixelSize: 12 }
-                        onTextChanged: panel.customAscii = text
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true; Layout.fillHeight: true
-                        radius: Theme.radiusMd; color: Theme.accentText
-                        Image { anchors.fill: parent; anchors.margins: 16; visible: !panel.asciiMode && panel.screensaverImage !== ""; source: panel.screensaverImage; fillMode: Image.PreserveAspectFit }
-                        Text { anchors.centerIn: parent; visible: panel.asciiMode || panel.screensaverImage === ""; text: panel.asciiMode ? panel.customAscii : "Choose an image"; color: Theme.accent; font { family: Theme.fontFamily; pixelSize: 18; bold: true } }
-                    }
-                }
-            }
-
-            Rectangle {
-                visible: panel.section === 2
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 radius: Theme.radiusMd

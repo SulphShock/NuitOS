@@ -1,4 +1,5 @@
 #!/bin/bash
+# Next wallpaper. --prev goes back, --random lives dangerously.
 # nuit-theme-bg-next — cycle to next background (Super+Ctrl+Space)
 # Usage: nuit-theme-bg-next [--prev] [--random]
 # Walks ~/.config/nuit/backgrounds/[theme] alphabetically, wraps around.

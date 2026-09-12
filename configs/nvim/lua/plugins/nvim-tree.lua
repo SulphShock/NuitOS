@@ -2,7 +2,9 @@ return {
   'nvim-tree/nvim-tree.lua',
   dependencies = { 'nvim-tree/nvim-web-devicons' },
   keys = {
-    { '<leader>f', '<cmd>NvimTreeToggle<CR>', desc = 'Toggle file tree' },
+    -- NOTE: plain 'f' per spec — this disables the f{char} find motion
+    { 'f', function() require('nvim-tree.api').tree.toggle() end, desc = 'File tree open/close' },
+    { '<leader>e', '<cmd>NvimTreeToggle<CR>', desc = 'File tree (alt)' },
   },
   opts = {
     on_attach = function(bufnr)
@@ -11,13 +13,19 @@ return {
         return { desc = 'nvim-tree: ' .. desc, buffer = bufnr, noremap = true, silent = true, nowait = true }
       end
 
-      api.config.mappings.default_on_attach(bufnr) -- keep all defaults, including r
+      api.config.mappings.default_on_attach(bufnr) -- keep defaults, then override
 
-      vim.keymap.set('n', 'w', function() vim.cmd('normal! k') end, opts('Up'))
-      vim.keymap.set('n', 's', function() vim.cmd('normal! j') end, opts('Down'))
-      vim.keymap.set('n', 'd', api.node.open.edit, opts('Open/Edit'))
-      vim.keymap.set('n', 'a', api.node.navigate.parent_close, opts('Close/Parent'))
-      vim.keymap.set('n', 'e', api.fs.rename, opts('Rename'))
+      -- arrow key navigation
+      vim.keymap.set('n', '<Up>',    api.node.navigate.sibling.previous, opts('Previous item'))
+      vim.keymap.set('n', '<Down>',  api.node.navigate.sibling.next,     opts('Next item'))
+      vim.keymap.set('n', '<Left>',  api.node.navigate.parent_close,     opts('Close folder'))
+      vim.keymap.set('n', '<Right>', api.node.open.edit,                 opts('Open'))
+
+      -- your file operations
+      vim.keymap.set('n', 'n',  api.fs.rename,    opts('Rename'))
+      vim.keymap.set('n', 'dd', api.fs.remove,    opts('Delete'))
+      vim.keymap.set('n', 'r',  api.tree.reload,  opts('Refresh'))
+      vim.keymap.set('n', 'a',  api.fs.create,    opts('New file/folder'))
     end,
     view = { width = 30 },
     renderer = { group_empty = true },

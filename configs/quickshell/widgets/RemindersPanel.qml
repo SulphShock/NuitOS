@@ -8,7 +8,7 @@ Rectangle {
     implicitWidth: 340
     implicitHeight: contentCol.implicitHeight + 24
     radius: Theme.radiusLg
-    color: Theme.menuBg
+    color: Theme.background
     focus: visible
 
     property string error: ""

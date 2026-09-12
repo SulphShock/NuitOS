@@ -68,6 +68,7 @@ ripgrep
 fd
 fzf
 tree-sitter
+tree-sitter-cli
 python-pynvim
 thunar
 thunar-archive-plugin

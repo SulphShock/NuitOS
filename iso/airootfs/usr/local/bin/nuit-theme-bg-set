@@ -1,4 +1,5 @@
 #!/bin/bash
+# Give it an image, it becomes the background. simple deal.
 # nuit-theme-bg-set — Nuit wallpaper setter (hyprpaper backend)
 # Usage: nuit-theme-bg-set <image-path>
 #   backgrounds live in ~/.config/nuit/backgrounds/[theme]

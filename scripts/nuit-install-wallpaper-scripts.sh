@@ -1,4 +1,5 @@
 #!/bin/bash
+# Puts the wallpaper crew in ~/.local/bin for dev machines.
 # Install NuitOS wallpaper/theme scripts to ~/.local/bin (dev/local machines).
 # The ISO ships these directly at /usr/local/bin instead.
 

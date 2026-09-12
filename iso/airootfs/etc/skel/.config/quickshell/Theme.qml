@@ -39,11 +39,11 @@ Singleton {
     property color faintText:            "#99EBDBB2" // placeholders
     property color ghostText:            "#55EBDBB2" // out-of-month, de-emphasized
 
-    // Radii — 24 panels / 14 controls / 10 rows+inputs.
+    // Radii — 5 panels / 4 controls / 3 rows and chips.
     // Circles and pills use r = height/2 (chips, icon buttons, search field).
-    readonly property int radiusLg: 24
-    readonly property int radiusMd: 14
-    readonly property int radiusSm: 10
+    readonly property int radiusLg: 5
+    readonly property int radiusMd: 4
+    readonly property int radiusSm: 3
 
     function icon(name) {
         let resolved = name
@@ -52,9 +52,13 @@ Singleton {
         if (resolved === "network-wireless-symbolic") resolved = "network-wireless-disabled-symbolic"
         if (resolved === "battery-level-100-charging-symbolic") resolved = "battery-level-100-charged-symbolic"
         if (resolved === "applications-system-symbolic") resolved = "preferences-system-symbolic"
+        // Folder by family. Everything else lives in status/.
         let folder = "status"
-        if (resolved === "preferences-system-symbolic") folder = "categories"
+        if (resolved === "camera-photo-symbolic") folder = "devices"
+        else if (resolved === "view-refresh-symbolic") folder = "actions"
         else if (resolved === "system-shutdown-symbolic") folder = "actions"
+        else if (resolved === "preferences-system-symbolic") folder = "categories"
+        else if (resolved === "preferences-system-notifications-symbolic") folder = "legacy"
         else if (resolved === "network-wired-symbolic") folder = "devices"
         else if (resolved.startsWith("network-wireless-") && !resolved.startsWith("network-wireless-signal-") && !resolved.includes("disabled")) folder = "devices"
         return "file:///usr/share/icons/Adwaita/symbolic/" + folder + "/" + resolved + ".svg"

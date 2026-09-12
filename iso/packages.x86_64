@@ -44,6 +44,7 @@ grim
 slurp
 wl-clipboard
 brightnessctl
+gammastep
 playerctl
 polkit-gnome
 otf-font-awesome
@@ -61,6 +62,7 @@ ripgrep
 fd
 fzf
 tree-sitter
+tree-sitter-cli
 nodejs
 npm
 python-pynvim

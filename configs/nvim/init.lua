@@ -1,6 +1,13 @@
--- Bootstrap lazy.nvim
+-- NuitOS Neovim config
+-- Theme: gruvbox dark hard — hardcoded in lua/plugins/colorscheme.lua
+
+-- required before nvim-tree loads
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
+-- bootstrap lazy.nvim
 local lazypath = vim.fn.stdpath('data') .. '/lazy/lazy.nvim'
-if not vim.uv.fs_stat(lazypath) then
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
   vim.fn.system({
     'git', 'clone', '--filter=blob:none',
     'https://github.com/folke/lazy.nvim.git',
@@ -10,13 +17,14 @@ if not vim.uv.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
--- Basic sane defaults
 vim.g.mapleader = ' '
-vim.opt.number = true
-vim.opt.termguicolors = true
+vim.g.maplocalleader = ' '
 
--- Load every plugin spec in lua/plugins/*.lua
-require('lazy').setup('plugins')
+require('config.options')
+require('config.keymaps')
+require('config.autocmds')
 
--- No colorscheme is forced here: Neovim starts with its default theme.
--- Point this at a theme plugin (e.g. gruvbox.nvim) when you add one.
+require('lazy').setup('plugins', {
+  install = { colorscheme = { 'gruvbox' } },
+  checker = { enabled = false },
+})

@@ -1,0 +1,188 @@
+#!/bin/bash
+# One wallpaper off the internet, straight onto your screen.
+# nuit-wallpaper-flare — fetch one wallpaper from WallpaperFlare, then set it.
+# Usage: nuit-wallpaper-flare <wallpaperflare-page-URL | direct-image-URL>
+#        nuit-wallpaper-flare --open [query]
+#        nuit-wallpaper-flare --help
+#
+# Honest single-download helper (no scraper — the site 403s bots):
+#   --open opens https://www.wallpaperflare.com/search?wallpaper=<query> in
+#   $BROWSER (or xdg-open) so YOU browse and copy a link yourself.
+#   A page URL is fetched once (browser UA + referer) and its full-res
+#   c4.wallpaperflare.com CDN image is extracted; a direct image URL is
+#   downloaded as-is. One file, 30s timeout, 25MB cap, mime-validated.
+#
+# Terms: user-driven single download for personal use only. Respect
+# wallpaperflare.com terms of use; photographers' licenses vary — check the
+# photo page before redistributing. No bulk, no loops, no API abuse.
+set -euo pipefail
+
+need() {  # need <binary> <install-hint>
+  if ! command -v "$1" >/dev/null 2>&1; then
+    notify-send -a Nuit "Missing: $1" "$2" 2>/dev/null || true
+    echo "Missing: $1 — $2" >&2
+    exit 1
+  fi
+}
+
+fail() {  # fail <message>
+  echo "nuit-wallpaper-flare: $1" >&2
+  notify-send -a Nuit "WallpaperFlare" "$1" 2>/dev/null || true
+  exit 1
+}
+
+print_help() {
+  cat <<'EOF'
+Usage: nuit-wallpaper-flare <wallpaperflare-page-URL | direct-image-URL>
+       nuit-wallpaper-flare --open [query]
+       nuit-wallpaper-flare --help
+
+  URL mode: download ONE image (page URL resolves its full-res
+    c4.wallpaperflare.com CDN file first) and apply via nuit-theme-bg-set.
+  --open [query]: open https://www.wallpaperflare.com/search?wallpaper=<query>
+    in $BROWSER (fallback: xdg-open) so you can browse + copy a link yourself.
+
+Single file, 30s timeout, 25MB max. Personal use only — respect
+wallpaperflare terms; photographers' licenses vary.
+EOF
+}
+
+UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+REFERER="https://www.wallpaperflare.com/"
+TIMEOUT=30
+MAX_BYTES=$((25 * 1024 * 1024))
+CACHE_DIR="$HOME/.cache/nuit/flare"
+
+slugify() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-80
+}
+
+open_search() {
+  local query enc url
+  query="$*"
+  if [ -z "$query" ]; then
+    url="https://www.wallpaperflare.com/"
+  else
+    enc="$(printf '%s' "$query" | sed 's/ /+/g')"
+    url="https://www.wallpaperflare.com/search?wallpaper=${enc}"
+  fi
+  if [ -n "${BROWSER:-}" ]; then
+    # shellcheck disable=SC2086
+    $BROWSER "$url" >/dev/null 2>&1 &
+  else
+    need xdg-open "install: xdg-utils"
+    xdg-open "$url" >/dev/null 2>&1 &
+  fi
+  echo "$url"
+}
+
+[ "$#" -gt 0 ] || { echo "Usage: nuit-wallpaper-flare <wallpaperflare-page-URL | direct-image-URL> | --open [query] | --help" >&2; exit 1; }
+
+case "${1:-}" in
+  -h|--help|help) print_help; exit 0 ;;
+  --open) shift; open_search "$@"; exit 0 ;;
+  --*) echo "nuit-wallpaper-flare: unknown option: $1" >&2; echo "Usage: nuit-wallpaper-flare <wallpaperflare-page-URL | direct-image-URL> | --open [query] | --help" >&2; exit 1 ;;
+esac
+
+[ "$#" -eq 1 ] || { echo "nuit-wallpaper-flare: pass exactly one URL (no bulk downloads)" >&2; exit 1; }
+
+need curl "install: curl"
+need file "install: file"
+
+URL="$1"
+case "$URL" in
+  http://*|https://*) ;;
+  *) fail "bad URL (need http(s):// wallpaperflare page or direct image URL): $URL" ;;
+esac
+
+# Classify: direct image (ext after query/fragment strip) vs flare page.
+CLEAN="${URL%%\?*}"
+CLEAN="${CLEAN%%\#*}"
+LOWER="$(printf '%s' "$CLEAN" | tr '[:upper:]' '[:lower:]')"
+IS_IMAGE=0
+case "$LOWER" in
+  *.jpg|*.jpeg|*.png|*.webp) IS_IMAGE=1 ;;
+esac
+IS_FLARE=0
+case "$URL" in
+  *wallpaperflare.com/*) IS_FLARE=1 ;;
+esac
+
+IMG_URL=""
+if [ "$IS_IMAGE" -eq 1 ]; then
+  IMG_URL="$URL"
+elif [ "$IS_FLARE" -eq 1 ]; then
+  PAGE_TMP="$(mktemp /tmp/nuit-flare-page-XXXXXX.html)"
+  IMG_TMP="$(mktemp /tmp/nuit-flare-XXXXXX.img)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$PAGE_TMP' '$IMG_TMP'" EXIT
+  if ! curl -fsSL --max-time "$TIMEOUT" -A "$UA" --referer "$REFERER" -o "$PAGE_TMP" "$URL"; then
+    fail "page blocked or needs JS — open it in a browser and copy the direct image link instead"
+  fi
+  IMG_URL="$((grep -Eo 'https://c4\.wallpaperflare\.com/wallpaper/[^"'"'"'[:space:]>]*\.(jpg|jpeg|png|webp)' "$PAGE_TMP" 2>/dev/null || true) | sort -u | awk '{ u=$0; if (match(u, /[0-9]{3,5}x[0-9]{3,5}/)) { m=substr(u, RSTART, RLENGTH); n=split(m, d, "x"); area=d[1]*d[2]; } else { area=length(u); } print area "\t" u; }' | sort -rn | head -n1 | cut -f2-)"
+  [ -n "$IMG_URL" ] || fail "no image found on that page — open it in a browser and copy the direct image link instead"
+else
+  fail "bad URL (need a wallpaperflare.com page or a direct .jpg/.jpeg/.png/.webp image URL): $URL"
+fi
+
+# Direct-image path still needs its temp file + cleanup trap.
+if [ -z "${PAGE_TMP:-}" ]; then
+  IMG_TMP="$(mktemp /tmp/nuit-flare-XXXXXX.img)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$IMG_TMP'" EXIT
+fi
+
+if ! curl -fsSL --max-time "$TIMEOUT" --max-filesize "$MAX_BYTES" -A "$UA" --referer "$REFERER" -o "$IMG_TMP" "$IMG_URL"; then
+  RC=$?
+  if [ "$RC" -eq 63 ]; then
+    fail "image too large (limit 25MB) — pick a smaller resolution"
+  fi
+  fail "download failed — the link may be expired or bot-blocked; open it in a browser instead"
+fi
+
+SIZE="$(stat -c%s "$IMG_TMP" 2>/dev/null || echo 0)"
+if [ "$SIZE" -gt "$MAX_BYTES" ]; then
+  fail "image too large (limit 25MB) — pick a smaller resolution"
+fi
+[ "$SIZE" -gt 0 ] || fail "download failed (empty file) — try opening the link in a browser"
+
+MIME="$(file --mime-type -b "$IMG_TMP" 2>/dev/null || echo "unknown")"
+case "$MIME" in
+  image/*) ;;
+  *) fail "not an image ($MIME) — the page may have returned HTML/JS instead" ;;
+esac
+
+# Extension from the final image URL (query stripped), mime-backed fallback.
+IMG_CLEAN="${IMG_URL%%\?*}"
+IMG_CLEAN="${IMG_CLEAN%%\#*}"
+EXT="$(printf '%s' "$IMG_CLEAN" | tr '[:upper:]' '[:lower:]' | sed -E 's/.*\.([a-z0-9]+)$/\1/')"
+case "$EXT" in
+  jpg|jpeg|png|webp) ;;
+  *)
+    case "$MIME" in
+      image/jpeg) EXT="jpg" ;;
+      image/png) EXT="png" ;;
+      image/webp) EXT="webp" ;;
+      *) EXT="jpg" ;;
+    esac
+    ;;
+esac
+
+BASE="$(printf '%s' "$CLEAN" | sed -E 's/[?#].*$//; s|/$||; s|.*/||; s/\.[a-zA-Z0-9]+$//')"
+SLUG="$(slugify "$BASE")"
+[ -n "$SLUG" ] || SLUG="wallpaper"
+
+mkdir -p "$CACHE_DIR"
+DEST="$CACHE_DIR/${SLUG}.${EXT}"
+mv -f "$IMG_TMP" "$DEST"
+trap - EXIT
+
+# Hand off to the canonical setter: PATH first, ~/.local/bin fallback
+# (same bgScript pattern as quickshell SettingsPanel).
+if command -v nuit-theme-bg-set >/dev/null 2>&1; then
+  nuit-theme-bg-set "$DEST"
+elif [ -x "$HOME/.local/bin/nuit-theme-bg-set" ]; then
+  "$HOME/.local/bin/nuit-theme-bg-set" "$DEST"
+else
+  fail "nuit-theme-bg-set not found (PATH or ~/.local/bin) — saved at $DEST"
+fi

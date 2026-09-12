@@ -1,4 +1,5 @@
 #!/bin/bash
+# Opens the backgrounds folder. go stare at art.
 # nuit-theme-bg-folder — open the backgrounds folder
 # Usage: nuit-theme-bg-folder
 set -euo pipefail
