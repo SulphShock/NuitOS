@@ -47,7 +47,7 @@ Nothing you do in the live session touches your computer until the installer run
 ```bash
 git clone https://github.com/SulphShock/NuitOS.git
 cd NuitOS
-sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
+sudo ./scripts/nuit-release.sh
 ```
 
 Output: `NuitOS-YYYY.MM.DD-x86_64.iso` (~3 GB) in `./out/`
@@ -77,19 +77,22 @@ It asks for disk, filesystem (ext4/btrfs), swap, LUKS2 encryption, locale/keymap
 
 ```
 NuitOS/
-├── configs/              # Default application configs
+├── configs/              # Canonical application configs (edit these)
 │   ├── quickshell/       # Topbar (QuickShell/QML)
 │   ├── hyprland/         # Window manager
 │   ├── ghostty/          # Terminal
 │   └── ...
-└── iso/                  # archiso profile (pure ISO)
-    ├── profiledef.sh     # ISO definition (required by archiso)
-    ├── packages.x86_64   # Packages bundled into ISO
-    ├── pacman.conf       # Pacman config for build
-    └── airootfs/         # Files bundled into ISO
-        ├── etc/skel/     # Default user dotfiles (hypr, quickshell, nvim, …)
-        ├── usr/local/bin/# nuit-installer + nuit-* helpers
-        └── usr/share/    # backgrounds, plymouth theme, greeter brand
+├── iso/                  # archiso profile (pure ISO)
+│   ├── profiledef.sh     # ISO definition (required by archiso)
+│   ├── packages.x86_64   # Live-session packages
+│   ├── pacman.conf       # Pacman config for build
+│   └── airootfs/         # Files bundled into ISO
+│       ├── etc/skel/     # Default user dotfiles (mirrors of configs/, checked by nuit-release.sh)
+│       ├── usr/local/bin/# nuit-installer + nuit-* helpers
+│       └── usr/share/    # backgrounds, plymouth theme, greeter brand
+├── scripts/              # nuit-release.sh (guarded build + optional flash) + helpers
+├── out/                  # Build output ISO (gitignored)
+└── work/                 # Build tree (gitignored, needs sudo to clean)
 ```
 
 ---
@@ -166,7 +169,7 @@ Warms the screen after dark so late sessions are easier on the eyes
 ## 🛠️ Building
 
 ```bash
-sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
+sudo ./scripts/nuit-release.sh
 ```
 
 ### Requirements for building
@@ -205,7 +208,10 @@ sudo mkarchiso -v -w /tmp/nuitos-build -o ./out ./iso
 **Fonts:**
 - JetBrains Mono Nerd Font (terminal + UI face — the only coding font shipped)
 
-**Also ships:** `firefox`, `gimp`, `file-roller` — a bootable, day-one desktop. Media plays via `mpv`; notes, chat, and anything else via `yay`.
+**Also ships:** `gimp`, `file-roller` — a bootable, day-one desktop.
+- Live session: `chromium` (browser), `vlc` (media). No display manager live — tty1 autologin straight into Hyprland (`sddm` is in the live package list but unused there).
+- Installed disk: `firefox` (browser), `LightDM + slick-greeter` (login), `mpv` (media).
+- Both: `zed`, `obsidian`, `nodejs` (editor plugins may need `npm`/`cmake` via `yay`). Notes, chat, and anything else via `yay`.
 
 **Developers:** the ISO ships `base-devel` (C toolchain) but not `nodejs`/`npm`/`cmake` — install them post-setup with `yay -S nodejs npm cmake` if your editor plugins need them.
 
