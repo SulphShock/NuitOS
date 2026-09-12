@@ -74,6 +74,7 @@ if [ "$MODE" = "full" ]; then
     done
     check_same "$REPO/configs/hyprland/hyprland.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprland.conf"
     check_same "$REPO/configs/hypridle/hypridle.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hypridle.conf"
+    check_same "$REPO/configs/hyprlock/hyprlock.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprlock.conf"
     check_same "$REPO/configs/bin/nuit-idle-animation" "$REPO/iso/airootfs/usr/local/bin/nuit-idle-animation"
     for d in quickshell ghostty nvim fastfetch Branding gammastep; do
         diff -rq "$REPO/configs/$d" "$REPO/iso/airootfs/etc/skel/.config/$d" >/dev/null 2>&1 \
