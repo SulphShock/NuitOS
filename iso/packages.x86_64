@@ -21,7 +21,7 @@ fastfetch
 unzip
 man-db
 man-pages
-tlp
+power-profiles-daemon
 reflector
 
 # Installer runtime (nuit-installer Phase 2 needs these LIVE, not just on target)
@@ -33,11 +33,7 @@ cryptsetup
 arch-install-scripts
 parted
 
-# Display server
-xorg-server
-xorg-xinit
-xorg-xrandr
-xorg-xset
+# Display server (Hyprland needs only xwayland; full X11 removed)
 xorg-xwayland
 
 # Hyprland & Wayland
@@ -47,8 +43,6 @@ hypridle
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-wlr
 xdg-utils
-mako
-swaylock
 grim
 slurp
 wl-clipboard
@@ -76,18 +70,12 @@ nodejs
 npm
 python-pynvim
 
-# File manager
-thunar
-thunar-archive-plugin
-tumbler
+# File manager (nautilus per Q3 standard)
+nautilus
 shared-mime-info
 
-# Browser
-chromium
-
-# SDDM
-sddm
-sddm-kcm
+# Browser (firefox per Q3 standard)
+firefox
 
 # Appearance
 qt5ct
@@ -101,30 +89,30 @@ pipewire-pulse
 pipewire-alsa
 wireplumber
 pavucontrol
-playerctl
 
 # Bluetooth
 bluez
 bluez-utils
 
-# Development
+# Development (base-devel group already provides gcc/make/pkgconf)
 base-devel
-gcc
-make
-pkgconf
 
-# Fonts
-ttf-fira-code
-ttf-fantasque-nerd
-ttf-cascadia-code
-ttf-jetbrains-mono
+# Fonts (jetbrains-nerd only per README; ttf-jetbrains-mono-nerd above covers UI+terminal)
+noto-fonts
+noto-fonts-emoji
+ttf-liberation
 
 # Apps
 file-roller
-vlc
 zed
 gimp
 obsidian
+
+# Removed (v1.0 diet, see CHANGELOG): chromium→firefox, vlc→mpv,
+# sddm/sddm-kcm→lightdm-slick (installed) / no DM live, swaylock→hyprlock,
+# mako→QuickShell Notifs, tlp→power-profiles-daemon, xorg-server/xinit/xrandr/xset→xorg-xwayland only,
+# thunar→nautilus, playerctl dupe, gcc/make/pkgconf (in base-devel),
+# ttf-fira/fantasque/cascadia/jetbrains-mono→ttf-jetbrains-mono-nerd only.
 
 # Live desktop runtime
 # Must match what hyprland.conf exec-once, hypridle lock_cmd, nuit-* helpers,
@@ -140,5 +128,6 @@ swappy
 gpu-screen-recorder
 mpv
 yt-dlp
+socat
 tesseract
 zbar
