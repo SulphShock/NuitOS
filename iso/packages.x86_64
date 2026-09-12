@@ -116,3 +116,20 @@ vlc
 zed
 gimp
 obsidian
+
+# Live desktop runtime
+# Must match what hyprland.conf exec-once, hypridle lock_cmd, nuit-* helpers,
+# and the QuickShell widgets call. The installed-system list already carries
+# these; the live session needs them too or the desktop ships broken.
+quickshell
+hyprlock
+fuzzel
+gum
+jq
+libnotify
+swappy
+gpu-screen-recorder
+mpv
+yt-dlp
+tesseract
+zbar
