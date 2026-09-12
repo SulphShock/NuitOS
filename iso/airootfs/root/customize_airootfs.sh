@@ -45,6 +45,13 @@ if ! command -v yay &>/dev/null; then
   install_yay
 fi
 
+# Mask systemd-firstboot on the live ISO: mkarchiso stamps machine-id
+# "uninitialized" at cleanup, which would drop a setup wizard in front of the
+# desktop. Live ships fixed locale/keymap/hostname already; PID 1 still
+# commits a real machine-id at boot. Installed systems are unaffected
+# (the installer pacstraps fresh and never copies this mask).
+systemctl mask systemd-firstboot.service
+
 # Empty /etc/machine-id suppresses systemd-firstboot on the live ISO.
 # Must run here (not just ship the file): pacstrap's systemd scriptlet writes
 # "uninitialized" AFTER the profile copy, and that string counts as first boot.
