@@ -5,12 +5,12 @@ jobs:
     runs-on: ubuntu-latest
     container: archlinux:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install archiso
         run: pacman -Sy --noconfirm archiso git
       - name: Build ISO
         run: |
           export NUIT_WORK=/tmp/nuitos-build
-          sudo ./scripts/nuit-release.sh
+          ./scripts/nuit-release.sh
           ls -lh out/*.iso
           sha256sum out/*.iso | tee out/SHA256SUMS
