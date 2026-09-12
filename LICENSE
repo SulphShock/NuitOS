@@ -21,8 +21,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ---
-Third-party components shipped in iso/airootfs (each under its own license,
-see the respective directories for full texts):
-- SDDM theme "gruvbox-minimal-sddm" (iso/airootfs/usr/share/sddm/themes/
-  gruvbox-minimal-sddm/): MIT, Copyright (c) 2023 scientiac
-  (https://github.com/scientiac/gruvbox-minimal-sddm, pinned at a652384).
+Third-party components referenced during development (each under its own
+license; see NOTICE files in configs/quickshell/ for the full list):
+- omarchy-better-menu, omarchy-youtube-music, omarchy-capture-board,
+  PlanovaQuickShell/Planova ideas (see configs/quickshell/NOTICE.md).
+- SDDM theme "gruvbox-minimal-sddm" was evaluated and is NOT shipped in v1.0
+  (login is LightDM + slick-greeter).

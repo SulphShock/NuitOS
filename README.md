@@ -50,11 +50,17 @@ cd NuitOS
 sudo ./scripts/nuit-release.sh
 ```
 
-Output: `NuitOS-YYYY.MM.DD-x86_64.iso` (~3 GB) in `./out/`
+Output: `NuitOS-YYYY.MM.DD-x86_64.iso` in `./out/`
+
+Verify your download before flashing:
+
+```bash
+sha256sum -c NuitOS-*.iso.sha256
+```
 
 ### Run
 
-1. Flash the ISO to a USB stick (the installer is UEFI-only — it uses systemd-boot; the live session itself also boots on BIOS)
+1. Flash the ISO to a USB stick (UEFI-only distro — the installer uses systemd-boot and refuses BIOS; the live session boots UEFI. `BIOS boot: unsupported.`)
 2. Boot the live session into Hyprland
 
 Done. You have a working desktop.
@@ -69,7 +75,9 @@ From the live session, run:
 nuit-installer
 ```
 
-It asks for disk, filesystem (ext4/btrfs), swap, LUKS2 encryption, locale/keymap/timezone, user, hostname, and whether to enable **autologin** (default: off — you log in with your password at the gruvbox slick-greeter screen). Use `nuit-installer --dry-run` to preview the plan without touching the disk.
+It asks for disk, filesystem (ext4/btrfs), swap, LUKS2 encryption, locale/keymap/timezone, user, hostname, and whether to enable **autologin** (default: off — you log in with your password at the gruvbox slick-greeter screen). Use `nuit-installer --dry-run` to preview the plan without touching the disk (read-only, never prompts GO, exit 0).
+
+LUKS installs encrypt swap too (swapfile inside the encrypted root — no plain-text swap). Note: encrypted swap means no hibernation/suspend-to-disk by design; suspend-to-RAM still works.
 
 ---
 
@@ -150,19 +158,18 @@ after 30 the machine suspends. Any key or mouse wiggle resets the timers.
 - **Add a stage:** copy a `listener` block and change the timeout + command
   (keep timeouts in ascending order). Each block documents its own knob.
 
-### 🌙 Night Light (gammastep)
+### 🌙 Night Light (hyprshade)
 
 Warms the screen after dark so late sessions are easier on the eyes
-(one-shot 4500K overlay via `gammastep -m wayland -O 4500K`; killing it reverts).
+(gentle 4500K screen shader via `hyprshade on nuit-night-light`; `hyprshade off` reverts —
+gammastep can't work here, Hyprland has no gamma-control protocol).
 
 - **Toggle:** top bar → Quick Settings → Night Light, or
   `qs ipc call gsb toggleNightLight`.
-- **Config:** `configs/gammastep/config.ini` (edit this one) mirrors to
-  `~/.config/gammastep/config.ini` — day 6500K, night 4500K; lower
-  `temp-night` (e.g. 3500K) for a warmer screen.
-- **Automatic sunset/sunrise:** set your `lat`/`lon` in the `[manual]`
-  section (example Paris: `lat=48.9`, `lon=2.4`); leave `0.0`/`0.0` to
-  stay manual and use the toggle only.
+- **Shader:** `configs/hyprland/shaders/nuit-night-light.glsl` (edit this one).
+  Tune the temperature there; lower (e.g. 3500K) for a warmer screen.
+- **Legacy:** `configs/gammastep/config.ini` is kept for reference only and is
+  not launched by the session.
 
 ---
 
@@ -209,13 +216,13 @@ sudo ./scripts/nuit-release.sh
 - JetBrains Mono Nerd Font (terminal + UI face — the only coding font shipped)
 
 **Also ships:** `gimp`, `file-roller` — a bootable, day-one desktop.
-- Live session: `chromium` (browser), `vlc` (media). No display manager live — tty1 autologin straight into Hyprland (`sddm` is in the live package list but unused there).
+- Live session: `firefox` (browser), `mpv` (media). No display manager live — tty1 autologin straight into Hyprland for user `nuitos` only.
 - Installed disk: `firefox` (browser), `LightDM + slick-greeter` (login), `mpv` (media).
-- Both: `zed`, `obsidian`, `nodejs` (editor plugins may need `npm`/`cmake` via `yay`). Notes, chat, and anything else via `yay`.
+- Both: `zed`, `obsidian`, `nodejs` + `npm` (nvim LSP/Treesitter need them), `socat` + `yt-dlp` (QuickShell music needs them). Notes, chat, and anything else via `yay`.
 
-**Developers:** the ISO ships `base-devel` (C toolchain) but not `nodejs`/`npm`/`cmake` — install them post-setup with `yay -S nodejs npm cmake` if your editor plugins need them.
+**Developers:** the ISO ships `base-devel` (C toolchain, includes gcc/make/pkgconf) plus `nodejs`/`npm` — install `cmake` post-setup with `yay -S cmake` if your editor plugins need it.
 
-**Editor:** neovim uses gruvbox-dark (hard) with `Super+F` for files (`Space f` works everywhere as fallback), arrow keys in the tree (`n` rename, `a` new, `dd` delete, `r` refresh). Treesitter parsers install on demand with `:TSInstallNuit`. LSP starts only for servers you have installed — silence there means "not installed," not "broken".
+**Editor:** neovim uses gruvbox-dark (hard) with `Super+Shift+F` for files (`Space f` works everywhere as fallback), arrow keys in the tree (`n` rename, `a` new, `dd` delete, `r` refresh). Treesitter parsers install on demand with `:TSInstallNuit`. LSP starts only for servers you have installed — silence there means "not installed," not "broken".
 
 ---
 
@@ -238,14 +245,15 @@ Hyprland defaults:
 | <kbd>Super</kbd> + <kbd>A</kbd> | Activities (app grid) |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd> | Settings panel |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>Space</kbd> | Random wallpaper |
-| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | Open file manager (thunar) |
+| <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd> | Open file manager (nautilus) |
 | <kbd>Super</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd> | Open browser (firefox) |
 | <kbd>PrtSc</kbd> / <kbd>Shift</kbd>+<kbd>PrtSc</kbd> | Screenshot region → clipboard / file |
 | <kbd>Super</kbd> + <kbd>Ctrl</kbd> + <kbd>C</kbd> | Capture menu (screenshot/record/OCR/QR/color) |
 | <kbd>Super</kbd> + <kbd>F1</kbd> | This key list (opens in a terminal) |
 | <kbd>Super</kbd> + Click/Drag | Move/resize window |
+| <kbd>Super</kbd> + mouse wheel | Switch workspace |
 
-Full config: `configs/hyprland/hyprland.conf`
+Full config: `configs/hyprland/` (entry `hyprland.conf` sources `env/appearance/rules/autostart/bindings`)
 
 ---
 
