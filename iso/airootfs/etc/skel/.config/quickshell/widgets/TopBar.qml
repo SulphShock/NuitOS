@@ -252,22 +252,22 @@ PanelWindow {
         anchors { horizontalCenter: parent.horizontalCenter; verticalCenter: parent.verticalCenter }
         height: Theme.barHeight
         spacing: 4
-        Vinyl {
-            anchors.verticalCenter: parent.verticalCenter
-        }
         StatusIcon {
             anchors.verticalCenter: parent.verticalCenter
             source: Theme.icon("camera-photo-symbolic")
             onClicked: SysState.toggleCaptureBoard()
         }
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: {
+        PillButton {
+            id: clockPill
+            property string timeText: {
                 SysState.clock.seconds          // per-second refresh dependency
                 return Qt.formatTime(new Date(), "h:mm AP")
             }
-            color: Theme.text
-            font { family: Theme.fontFamily; pixelSize: Theme.fontPx; bold: true }
+            anchors.verticalCenter: parent.verticalCenter
+            height: 20
+            label: timeText
+            active: SysState.hubOpen
+            onClicked: SysState.toggleHub()
         }
         StatusIcon {
             id: alarmBtn
@@ -279,11 +279,6 @@ PanelWindow {
                 target: SysState
                 function onRemindersChanged() { alarmBtn.pulse() }
             }
-        }
-        StatusIcon {
-            anchors.verticalCenter: parent.verticalCenter
-            source: Theme.icon("x-office-calendar-symbolic")
-            onClicked: SysState.togglePlan()
         }
     }
 
@@ -385,7 +380,7 @@ PanelWindow {
                 }
             }
 
-            // Night light moon — only up while gammastep warms the screen.
+            // Night light moon — only up while the warm shader is on.
             // Clicking it turns the warmth back off. Trails the row.
             StatusIcon {
                 id: moonBtn

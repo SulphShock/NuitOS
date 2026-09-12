@@ -73,6 +73,12 @@ if [ "$MODE" = "full" ]; then
         check_same "$REPO/scripts/$t" "$REPO/iso/airootfs/usr/local/bin/$t"
     done
     check_same "$REPO/configs/hyprland/hyprland.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprland.conf"
+    for hf in env.conf appearance.conf rules.conf autostart.conf bindings.conf bindings.lua hyprland.lua; do
+        check_same "$REPO/configs/hyprland/$hf" "$REPO/iso/airootfs/etc/skel/.config/hypr/$hf"
+    done
+    check_same "$REPO/configs/hyprland/shaders/nuit-night-light.glsl" "$REPO/iso/airootfs/etc/skel/.config/hypr/shaders/nuit-night-light.glsl"
+    check_same "$REPO/configs/hyprpaper/hyprpaper.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprpaper.conf"
+    check_same "$REPO/configs/nuit/keybinds.txt" "$REPO/iso/airootfs/etc/skel/.config/nuit/keybinds.txt"
     check_same "$REPO/configs/hypridle/hypridle.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hypridle.conf"
     check_same "$REPO/configs/hyprlock/hyprlock.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprlock.conf"
     check_same "$REPO/configs/bin/nuit-idle-animation" "$REPO/iso/airootfs/usr/local/bin/nuit-idle-animation"

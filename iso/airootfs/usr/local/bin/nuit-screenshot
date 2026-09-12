@@ -1,5 +1,4 @@
 #!/bin/bash
-# Screenshots via grim + slurp. say cheese.
 # nuit-screenshot — Nuit screenshots (grim + slurp backend)
 # Usage: nuit-screenshot [region|window|fullscreen] [both|copy|save]
 #   region      drag a box                                            (default)
@@ -9,8 +8,8 @@
 #   both        save to disk AND copy to clipboard                    (default)
 #   copy        clipboard only
 #   save        disk only
-# Dir: ${NUIT_SCREENSHOT_DIR:-~/Pictures}, files named
-# screenshot-YYYY-MM-DD_HH-MM-SS.png.
+# Dir: ${NUIT_SCREENSHOT_DIR:-~/Pictures/Screenshots/YYYY-MM-DD}, files named
+# screenshot-HH-MM-SS.png. Tidy by day, no archaeology required.
 set -euo pipefail
 
 MODE="${1:-region}"
@@ -24,9 +23,9 @@ if [ "$TARGET" = "copy" ]; then
   FILE="$(mktemp /tmp/nuit-shot-XXXXXX.png)"
   trap 'rm -f "$FILE"' EXIT
 else
-  DIR="${NUIT_SCREENSHOT_DIR:-$HOME/Pictures}"
+  DIR="${NUIT_SCREENSHOT_DIR:-${OMARCHY_SCREENSHOT_DIR:-$HOME/Pictures/Screenshots/$(date +%F)}}"
   mkdir -p "$DIR"
-  FILE="$DIR/screenshot-$(date +%Y-%m-%d_%H-%M-%S).png"
+  FILE="$DIR/screenshot-$(date +%H-%M-%S).png"
 fi
 
 focused_monitor() {

@@ -18,14 +18,12 @@ Singleton {
     property bool wifiOpen: false
     property bool capOpen: false
     property bool ytOpen: false
-    property bool planOpen: false
-    property bool calOpen: false
+    property bool hubOpen: false
     property bool notifOpen: false
     property bool idleDim: false
     property string username: "user"
-    function closeAll() { qsOpen = actOpen = settingsOpen = remOpen = btOpen = wifiOpen = capOpen = ytOpen = planOpen = calOpen = notifOpen = false }    function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
-    function togglePlan()       { const v = planOpen;  closeAll(); planOpen  = !v }
-    function toggleCalendar()   { const v = calOpen;   closeAll(); calOpen   = !v }
+    function closeAll() { qsOpen = actOpen = settingsOpen = remOpen = btOpen = wifiOpen = capOpen = ytOpen = hubOpen = notifOpen = false }    function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
+    function toggleHub()        { const v = hubOpen;   closeAll(); hubOpen   = !v }
     function toggleNotifs() {
         const v = notifOpen
         closeAll()
@@ -249,7 +247,7 @@ Singleton {
     }
     Process {
         id: ipProc
-        command: ["sh", "-c", "hostname -I 2>/dev/null | cut -d' ' -f1"]
+        command: ["sh", "-c", "ip -o -4 route get 1.1.1.1 2>/dev/null | awk '{print $7}'"]
         stdout: StdioCollector {
             onStreamFinished: root.localIp = text.trim()
         }
@@ -641,13 +639,17 @@ Singleton {
         ppSet.running = true
     }
 
-    // ─────────────────────────── Night Light (gammastep) ────────────────────────────
+    // ─────────────────────────── Night Light (hyprshade) ────────────────────────────
+    // gammastep can't work here: Hyprland has no gamma-control protocol.
+    // hyprshade applies our gentle 4500K screen shader instead (stock
+    // blue-light-filter at 2600K is too strong). Tune it in
+    // ~/.config/hypr/shaders/nuit-night-light.glsl.
     property bool nightLight: false
-    Process { id: nlStart; command: ["gammastep", "-m", "wayland", "-O", "4500K"] }
-    Process { id: nlStop;  command: ["pkill", "gammastep"] }
+    Process { id: nlProc }
     function setNightLight(on) {
         nightLight = on
-        on ? (nlStart.running = true) : (nlStop.running = true)
+        nlProc.command = on ? ["hyprshade", "on", "nuit-night-light"] : ["hyprshade", "off"]
+        nlProc.running = true
     }
 
     // ─────────────────────── OS update center ───────────────────────

@@ -1,6 +1,3 @@
-# Ghostty -- Gruvbox Dark, JetBrains Mono. home sweet terminal.
-
-theme = "Gruvbox Dark"
 font-size = 11
 font-family = "JetBrainsMono Nerd Font"
 background-opacity = 1

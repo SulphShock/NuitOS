@@ -22,6 +22,7 @@ readonly BAD="#f7768e"
 
 DRY_RUN=0
 UNATTENDED=""
+ORIG_ARGS=("$@")
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
@@ -33,17 +34,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Re-exec as root (live user has NOPASSWD sudo); keep the pretty UI.
+# Re-exec as root (live user has NOPASSWD sudo); preserve original argv
+# (the parse loop above consumed $@) and export mode flags for the child.
 if [[ $DRY_RUN -ne 1 && "$(id -u)" -ne 0 ]]; then
-  exec sudo -E "$0" "$@"
+  export DRY_RUN UNATTENDED
+  exec sudo -E "$0" "${ORIG_ARGS[@]}"
 fi
 
-# Early firmware gate: the installer is UEFI-only (systemd-boot). Fail here —
-# before a single question — instead of after the full questionnaire.
-if [[ $DRY_RUN -ne 1 && ! -d /sys/firmware/efi ]]; then
-  echo "error: this live session booted in BIOS/Legacy mode." >&2
-  echo "Reboot via your UEFI boot entry (Secure Boot off), then re-run nuit-installer." >&2
-  exit 1
+# Early firmware gate: the installer is UEFI-only (systemd-boot). On a real
+# run fail before a single question; on --dry-run print an honest SKIP and
+# continue so the plan can still be previewed on BIOS.
+if [[ ! -d /sys/firmware/efi ]]; then
+  if [[ $DRY_RUN -eq 1 ]]; then
+    echo "note: SKIP/BIOS — live session booted in BIOS/Legacy mode; real install requires UEFI." >&2
+  else
+    echo "error: this live session booted in BIOS/Legacy mode." >&2
+    echo "Reboot via your UEFI boot entry (Secure Boot off), then re-run nuit-installer." >&2
+    exit 1
+  fi
 fi
 
 heading() { if command -v gum >/dev/null 2>&1; then gum style --padding "0 4" --border rounded --border-foreground "$ACCENT" --foreground "#e0def4" --bold " $1 "; else echo "== $1 =="; fi; }
@@ -161,7 +169,13 @@ if [[ -n "${UNATTENDED:-}" ]]; then
     "$USERNAME" "${FULL_NAME:-$USERNAME}" "$HOSTNAME" "$AUTOLOGIN_OPT"
   if [[ $DRY_RUN -eq 1 ]]; then
     printf 'PLAN (dry-run, no action taken)\n - sgdisk GPT on %s: %s ESP 512MiB (ef00)\n' "$DISK_DEV" "$P1"
-    [[ -n "${SWAP_G:-}" ]] && printf '   %s swap %sGiB (8200)\n' "${DISK_DEV}${PS}2" "$SWAP_G"
+    if [[ -n "${SWAP_G:-}" ]]; then
+      if [[ "${LUKS:-}" = "yes" ]]; then
+        printf '   /swapfile %sGiB inside LUKS2 root (encrypted swap, no hibernation)\n' "$SWAP_G"
+      else
+        printf '   %s swap %sGiB (8200)\n' "${DISK_DEV}${PS}2" "$SWAP_G"
+      fi
+    fi
     printf '   root %s %s\n - mount /mnt -> root, %s -> /mnt/boot\n - pacstrap + payload + chroot (autologin=%s)\n' \
       "$FS" "$([ "${LUKS:-}" = "yes" ] && echo LUKS2 || echo plain)" "$P1" "$AUTOLOGIN_OPT"
     exit 0
@@ -306,14 +320,16 @@ ${GOOD}Locale:${DIM}   ${LANG_VAL}  ${KEYMAP}  ${TZ}
 ${GOOD}User:${DIM}     ${USERNAME} (${FULL_NAME:-$USERNAME})  host=${HOSTNAME}
 ${GOOD}Login:${DIM}    autologin=${AUTOLOGIN_OPT}  greeter=slick (gruvbox)"
 
-gum confirm --prompt.background "#1a1b26" --affirmative "GO" --negative "Abort" \
-  "Erase $DISK_DEV and install NuitOS?" || { warn "aborted"; exit 1; }
-
 if [[ $DRY_RUN -eq 1 ]]; then
+  if [[ "$LUKS_OPT" == *"LUKS2"* && -n "${SWAP_G:-}" ]]; then
+    SWAP_LINE="   /swapfile ${SWAP_G}GiB inside LUKS2 root (encrypted swap, no hibernation)"
+  else
+    SWAP_LINE="   ${SWAP_G:+${DISK_DEV}${PS}2 swap ${SWAP_G}GiB (8200)}  root ${FS} ${LUKS_OPT:+LUKS2}"
+  fi
   gum style --padding "0 2" --foreground "$GOOD" \
 "PLAN (dry-run, no action taken)
  - sgdisk GPT on $DISK_DEV: ${P1} ESP 512MiB (ef00)
-   ${SWAP_G:+${DISK_DEV}${PS}2 swap ${SWAP_G}GiB (8200)}  root ${FS} ${LUKS_OPT:+LUKS2}
+$SWAP_LINE
  - mount /mnt -> root, ${P1} -> /mnt/boot
   - pacstrap -K /mnt  \$(cat /usr/local/share/nuit/pkgs-disk.txt)
   - payload (live -> /mnt): skel + nuit-* scripts + backgrounds + plymouth/greeter brand
@@ -321,6 +337,10 @@ if [[ $DRY_RUN -eq 1 ]]; then
             + locale/time/user/hostname + initramfs + systemd-boot (UEFI)"
   exit 0
 fi
+
+# Destructive gate: only real runs reach here (--dry-run exited above).
+gum confirm --prompt.background "#1a1b26" --affirmative "GO" --negative "Abort" \
+  "Erase $DISK_DEV and install NuitOS?" || { warn "aborted"; exit 1; }
 
 fi # end interactive-only branch (unattended path validated above)
 
@@ -347,11 +367,20 @@ sgdisk --new=1:0:+512M --typecode=1:ef00 --change-name=1:ESP "$DISK_DEV" >/dev/n
 ROOT_IDX=2
 ROOT_PART="${DISK_DEV}${PS}2"
 SWAP_PART=""
+SWAPFILE_G=""
 if [[ -n "${SWAP_G:-}" ]] && (( SWAP_G > 0 )); then
-  sgdisk --new=2:0:+"${SWAP_G}G" --typecode=2:8200 --change-name=2:swap "$DISK_DEV" >/dev/null
-  SWAP_PART="${DISK_DEV}${PS}2"
-  ROOT_IDX=3
-  ROOT_PART="${DISK_DEV}${PS}3"
+  if [[ "$LUKS_OPT" == *"LUKS2"* ]]; then
+    # Encrypted swap: a plain swap partition would leak RAM to disk
+    # unencrypted. Use a swapfile inside the LUKS-encrypted root instead —
+    # it inherits the container's encryption. No extra partition, no key.
+    # (No hibernation: no persistent resume target by design.)
+    SWAPFILE_G="$SWAP_G"
+  else
+    sgdisk --new=2:0:+"${SWAP_G}G" --typecode=2:8200 --change-name=2:swap "$DISK_DEV" >/dev/null
+    SWAP_PART="${DISK_DEV}${PS}2"
+    ROOT_IDX=3
+    ROOT_PART="${DISK_DEV}${PS}3"
+  fi
 fi
 case "$FS" in btrfs) ROOT_TYPE=8304 ;; *) ROOT_TYPE=8300 ;; esac
 sgdisk --new="${ROOT_IDX}:0:-0" --typecode="${ROOT_IDX}:${ROOT_TYPE}" --change-name="${ROOT_IDX}:nuitroot" "$DISK_DEV" >/dev/null || \
@@ -394,6 +423,18 @@ info "mounting target"
 mkdir -p /mnt/boot
 mount "$TARGET" /mnt
 mount "$P1" /mnt/boot
+if [[ -n "${SWAPFILE_G:-}" ]]; then
+  info "creating encrypted swapfile (${SWAPFILE_G}GiB inside LUKS root)"
+  if [[ "$FS" == "btrfs" ]]; then
+    truncate -s 0 /mnt/swapfile
+    chattr +C /mnt/swapfile 2>/dev/null || true
+    fallocate -l "${SWAPFILE_G}G" /mnt/swapfile
+  else
+    fallocate -l "${SWAPFILE_G}G" /mnt/swapfile
+  fi
+  chmod 600 /mnt/swapfile
+  mkswap /mnt/swapfile >/dev/null
+fi
 
 info "installing packages (pacstrap)"
 mapfile -t PKGS < <(grep -vE '^\s*(#|$)' "$PKG_LIST")
@@ -414,6 +455,10 @@ fi
 
 info "generating fstab"
 genfstab -U /mnt > /mnt/etc/fstab
+if [[ -n "${SWAPFILE_G:-}" ]]; then
+  # genfstab never sees the swapfile (not swapon'd during install), so append.
+  grep -q "^/swapfile " /mnt/etc/fstab || echo "/swapfile none swap defaults 0 0" >> /mnt/etc/fstab
+fi
 
 # --- Payload: live image -> target (MUST run outside chroot) --------------
 # NOTE: everything below copies FROM the live ISO root (/) TO the target

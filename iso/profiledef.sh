@@ -13,7 +13,8 @@ arch="x86_64"
 pacman_conf="pacman.conf"
 airootfs_permissions=(
   [0]='root:root 0755'
-  [1]='root:root 0644 etc/passwd etc/group etc/shadow etc/gshadow'
-  [2]='root:root 0755 etc/pacman.d'
-  [3]='root:root 0755 root'
+  [1]='root:root 0640 etc/shadow etc/gshadow'
+  [2]='root:root 0644 etc/passwd etc/group'
+  [3]='root:root 0755 etc/pacman.d'
+  [4]='root:root 0755 root'
 )

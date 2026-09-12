@@ -1,6 +1,7 @@
 // Music player. Search, queue, mixes over mpv.
 // See NOTICE.md for sources.
-// Needs: yt-dlp, mpv, socat. Super+Ctrl+Shift+M not wired -- open it from the vinyl.
+// Needs: yt-dlp, mpv, socat. Lives inside the time hub; the standalone
+// popup opens from the same engine.
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
