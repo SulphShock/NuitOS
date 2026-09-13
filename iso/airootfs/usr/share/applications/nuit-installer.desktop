@@ -1,10 +1,8 @@
 [Desktop Entry]
-Name=Nuit OS Installer
-Comment=Install Nuit OS to the internal disk (wipes target disk)
+Name=Install NuitOS
+Comment=Install NuitOS to your disk
 Exec=ghostty -e nuit-installer
-Type=Application
+Icon=drive-harddisk
 Terminal=false
+Type=Application
 Categories=System;
-Icon=system-software-install
-Keywords=install;setup;disk;
-NoDisplay=false

@@ -30,7 +30,6 @@ diff:
     @diff -qr {{REPO}}/configs/nvim {{REPO}}/iso/airootfs/etc/skel/.config/nvim
     @diff -qr {{REPO}}/configs/fastfetch {{REPO}}/iso/airootfs/etc/skel/.config/fastfetch
     @diff -qr {{REPO}}/configs/Branding {{REPO}}/iso/airootfs/etc/skel/.config/Branding
-    @diff -qr {{REPO}}/configs/gammastep {{REPO}}/iso/airootfs/etc/skel/.config/gammastep
     @diff -qr {{REPO}}/configs/wallpapers/default {{REPO}}/iso/airootfs/usr/share/backgrounds
     @diff -qr {{REPO}}/configs/wallpapers/default {{REPO}}/iso/airootfs/etc/skel/.config/nuit/backgrounds
     @test ! -s {{REPO}}/iso/airootfs/etc/machine-id
@@ -43,7 +42,6 @@ deploy:
     @cp -a {{REPO}}/configs/nvim/. ~/.config/nvim/
     @cp -a {{REPO}}/configs/fastfetch/. ~/.config/fastfetch/
     @cp -a {{REPO}}/configs/Branding/. ~/.config/Branding/
-    @cp -a {{REPO}}/configs/gammastep/. ~/.config/gammastep/
     @mkdir -p ~/.config/nuit
     @cp -f {{REPO}}/configs/nuit/keybinds.txt ~/.config/nuit/keybinds.txt
     @cp -f {{REPO}}/configs/hyprland/hyprland.conf ~/.config/hypr/hyprland.conf
@@ -61,6 +59,7 @@ deploy:
     @cp -f {{REPO}}/configs/hyprland/shaders/nuit-night-light.glsl ~/.config/hypr/shaders/
     @cp -f {{REPO}}/configs/bin/* ~/.local/bin/
     @cp -f {{REPO}}/scripts/nuit-theme-bg-* ~/.local/bin/
+    @cp -f {{REPO}}/scripts/nuit-aur-install ~/.local/bin/
     @echo "Deployed. Restart Hyprland / qs to pick up."
 
 sync-check:

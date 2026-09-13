@@ -157,7 +157,7 @@ Singleton {
             : ["nmcli", "device", "wifi", "connect", ssid, "password", password]
         nmConnect.running = true
     }
-    Component.onCompleted: { refreshNetwork(); refreshBt(); blProbe.running = true; ppGet.running = true; whoami.running = true; remMkdir.running = true; nmMonitor.running = true }
+    Component.onCompleted: { refreshNetwork(); refreshBt(); blProbe.running = true; ppGet.running = true; whoami.running = true; remMkdir.running = true; nmMonitor.running = true; capCheck.start(); updCapCheck.start() }
 
     Process {
         id: whoami
@@ -697,6 +697,14 @@ Singleton {
     // blue-light-filter at 2600K is too strong). Tune it in
     // ~/.config/hypr/shaders/nuit-night-light.glsl.
     property bool nightLight: false
+    property bool hasNightLight: false
+    Process {
+        id: capCheck
+        command: ["sh", "-c", "command -v hyprshade >/dev/null 2>&1 && echo 1 || echo 0"]
+        stdout: StdioCollector {
+            onStreamFinished: root.hasNightLight = text.trim() === "1"
+        }
+    }
     Process { id: nlProc }
     function setNightLight(on) {
         nightLight = on
@@ -711,6 +719,14 @@ Singleton {
     property int pendingUpdates: -1   // -1 = haven't checked yet
     property bool updatesUnknown: false  // true when yay is missing/broken
     property double lastUpdateCheck: 0
+    property bool hasUpdateSupport: false
+    Process {
+        id: updCapCheck
+        command: ["sh", "-c", "command -v yay >/dev/null 2>&1 || command -v paru >/dev/null 2>&1 && echo 1 || echo 0"]
+        stdout: StdioCollector {
+            onStreamFinished: root.hasUpdateSupport = text.trim() === "1"
+        }
+    }
     readonly property string updateSubtitle: updatesUnknown ? "Install yay to check"
         : pendingUpdates < 0 ? "Checking…"
         : pendingUpdates === 0 ? "Up to date" : pendingUpdates + " waiting"

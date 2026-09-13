@@ -85,7 +85,7 @@ if [ "$MODE" = "full" ]; then
     check_same "$REPO/configs/hypridle/hypridle.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hypridle.conf"
     check_same "$REPO/configs/hyprlock/hyprlock.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprlock.conf"
     check_same "$REPO/configs/bin/nuit-idle-animation" "$REPO/iso/airootfs/usr/local/bin/nuit-idle-animation"
-    for d in quickshell ghostty nvim fastfetch Branding gammastep; do
+    for d in quickshell ghostty nvim fastfetch Branding; do
         diff -rq "$REPO/configs/$d" "$REPO/iso/airootfs/etc/skel/.config/$d" >/dev/null 2>&1 \
             || { warn "drift: configs/$d != skel .config/$d"; drift=1; }
     done
@@ -115,6 +115,11 @@ if [ "$MODE" = "full" ]; then
 
     note "building ISO (mkarchiso on $REPO/iso)"
     mkarchiso -v -w "$WORK" -o "$ISO_DIR" "$REPO/iso"
+
+    # Ensure the AUR installer is executable in the built ISO
+    AUR_BIN="$WORK/x86_64/airootfs/usr/local/bin/nuit-aur-install"
+    [ -x "$AUR_BIN" ] || { note "injecting nuit-aur-install into ISO"; cp "$REPO/scripts/nuit-aur-install" "$AUR_BIN"; chmod +x "$AUR_BIN"; }
+
     note "build finished"
 fi
 

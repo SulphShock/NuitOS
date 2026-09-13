@@ -24,7 +24,6 @@ man-db
 man-pages
 power-profiles-daemon
 upower
-gammastep
 xorg-xwayland
 hyprland
 hyprpaper

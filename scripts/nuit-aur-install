@@ -1,0 +1,65 @@
+#!/bin/bash
+# nuit-aur-install — bootstrap yay + install AUR packages needed by NuitOS
+# Usage: nuit-aur-install
+#   Called automatically on first boot via Hyprland autostart.
+#   Safe to re-run: already-installed packages are skipped.
+#   Runs in background — no terminal window kept open.
+set -euo pipefail
+
+LOG="/tmp/nuit-aur-install.log"
+exec > >(tee -a "$LOG") 2>&1
+
+RED=$'\e[31m'; GRN=$'\e[32m'; DIM=$'\e[2m'; RST=$'\e[0m'
+note() { printf '%s[nuit-aur]%s %s\n' "${DIM}" "${RST}" "$*"; }
+fail() { printf '%s[nuit-aur]%s %s\n' "${RED}" "${RST}" "$*" >&2; exit 1; }
+
+# ── AUR packages needed by NuitOS but not in official repos ──
+AUR_PACKAGES=(
+    hyprshade
+)
+
+# ── bootstrap yay if no AUR helper found ──
+if ! command -v yay >/dev/null 2>&1 && ! command -v paru >/dev/null 2>&1; then
+    note "No AUR helper found — bootstrapping yay..."
+    command -v git >/dev/null 2>&1 || fail "git not found — install git first"
+    command -v base-devel >/dev/null 2>&1 || {
+        note "Installing base-devel..."
+        sudo pacman -S --noconfirm base-devel
+    }
+    TMPDIR=$(mktemp -d)
+    git clone https://aur.archlinux.org/yay.git "$TMPDIR/yay"
+    (cd "$TMPDIR/yay" && makepkg -si --noconfirm)
+    rm -rf "$TMPDIR"
+    note "yay installed"
+fi
+
+# ── pick helper ──
+AUR_HELPER=""
+if command -v yay >/dev/null 2>&1; then
+    AUR_HELPER="yay"
+elif command -v paru >/dev/null 2>&1; then
+    AUR_HELPER="paru"
+else
+    fail "AUR helper install failed"
+fi
+
+# ── filter out already installed ──
+TO_INSTALL=()
+for pkg in "${AUR_PACKAGES[@]}"; do
+    if pacman -Qi "$pkg" >/dev/null 2>&1; then
+        note "$pkg already installed, skipping"
+    else
+        TO_INSTALL+=("$pkg")
+    fi
+done
+
+# ── install ──
+if [ ${#TO_INSTALL[@]} -eq 0 ]; then
+    note "All AUR packages already installed"
+    exit 0
+fi
+
+note "Installing ${#TO_INSTALL[@]} AUR package(s) via $AUR_HELPER: ${TO_INSTALL[*]}"
+$AUR_HELPER -S --noconfirm "${TO_INSTALL[@]}"
+
+note "${GRN}Done${RST} — ${#TO_INSTALL[@]} package(s) installed"

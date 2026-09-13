@@ -24,7 +24,7 @@ man-pages
 power-profiles-daemon
 reflector
 
-# Installer runtime (nuit-installer Phase 2 needs these LIVE, not just on target)
+# Disk installer tools (calamares installed via AUR post-install)
 gptfdisk
 dosfstools
 btrfs-progs
@@ -47,7 +47,6 @@ grim
 slurp
 wl-clipboard
 brightnessctl
-gammastep
 playerctl
 polkit-gnome
 otf-font-awesome
@@ -121,7 +120,7 @@ obsidian
 quickshell
 hyprlock
 hyprpicker
-hyprshade
+
 fuzzel
 gum
 jq

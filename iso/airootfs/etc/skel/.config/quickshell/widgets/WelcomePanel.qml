@@ -102,7 +102,7 @@ Rectangle {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         SysState.dismissWelcome()
-                        SysState.launch("nuit-term-run nuit-installer")
+                        SysState.launch("ghostty -e nuit-installer")
                     }
                 }
             }
