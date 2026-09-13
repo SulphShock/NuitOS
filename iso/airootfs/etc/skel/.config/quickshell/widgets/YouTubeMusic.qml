@@ -273,6 +273,9 @@ Rectangle {
             playAt(Math.max(0, selectedIndex))
             return
         }
+        // runAction drops while busy — only flip the icon when the toggle
+        // actually went out, or it desyncs from mpv until the next poll.
+        if (actionProc.running) return
         runAction("toggle")
         playing = !playing
     }
@@ -734,6 +737,8 @@ Rectangle {
                 color: rowMixArea.containsMouse ? Theme.accent : Theme.dimText
                 font { family: Theme.fontFamily; pixelSize: 13 }
                 opacity: (trackArea.containsMouse || rowMixArea.containsMouse) ? 1 : 0
+                // Above the row-wide select area (declared later = on top).
+                z: 2
                 Behavior on opacity { NumberAnimation { duration: 90 } }
                 Layout.alignment: Qt.AlignVCenter
                 MouseArea {

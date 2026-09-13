@@ -87,6 +87,16 @@ Rectangle {
                 active: SysState.pendingUpdates > 0
                 onClicked: SysState.runOsUpdate()
             }
+            // Full-width keybinds shortcut (spans both columns).
+            QSToggle {
+                Layout.fillWidth: true
+                Layout.columnSpan: 2
+                icon: "input-keyboard-symbolic"
+                title: "Keybinds"
+                subtitle: "Cheatsheet"
+                active: false
+                onClicked: SysState.toggleKeybinds()
+            }
             QSToggle {
                 Layout.fillWidth: true
                 icon: "applications-system-symbolic"

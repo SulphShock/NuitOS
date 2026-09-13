@@ -68,8 +68,11 @@ if [ "$MODE" = "full" ]; then
     check_same "$REPO/configs/bin/nuit-screenrecord"  "$REPO/iso/airootfs/usr/local/bin/nuit-screenrecord"
     check_same "$REPO/configs/bin/nuit-screenshot"    "$REPO/iso/airootfs/usr/local/bin/nuit-screenshot"
     check_same "$REPO/configs/bin/nuit-wallpaper-flare" "$REPO/iso/airootfs/usr/local/bin/nuit-wallpaper-flare"
+    check_same "$REPO/configs/bin/nuit-browser-private" "$REPO/iso/airootfs/usr/local/bin/nuit-browser-private"
+    check_same "$REPO/configs/bin/nuit-idle-toggle" "$REPO/iso/airootfs/usr/local/bin/nuit-idle-toggle"
+    check_same "$REPO/configs/bin/nuit-term-run" "$REPO/iso/airootfs/usr/local/bin/nuit-term-run"
     check_same "$REPO/scripts/nuit-random-wallpaper.sh" "$REPO/iso/airootfs/usr/local/bin/nuit-random-wallpaper"
-    for t in nuit-theme-bg-set nuit-theme-bg-next nuit-theme-bg-folder nuit-theme-bg-current; do
+    for t in nuit-theme-bg-set nuit-theme-bg-next nuit-theme-bg-folder nuit-theme-bg-current nuit-theme-bg-pick; do
         check_same "$REPO/scripts/$t" "$REPO/iso/airootfs/usr/local/bin/$t"
     done
     check_same "$REPO/configs/hyprland/hyprland.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprland.conf"
@@ -157,7 +160,7 @@ SIZE_G=$(( SIZE_BYTES / 1024 / 1024 / 1024 ))
 [ "$SIZE_G" -le 128 ] || die "refusing device larger than 128 GiB ($SIZE_G GiB) — this looks like a hard disk"
 
 # Checksum the ISO first (so a bad flash isn't blamed on a bad build).
-md5sum "$ISO"
+sha256sum "$ISO"
 
 ISO_BYTES="$(stat -c%s "$ISO")"
 [ "$ISO_BYTES" -lt "$SIZE_BYTES" ] || die "ISO ($ISO_BYTES bytes) does not fit on $DEV ($SIZE_BYTES bytes)"

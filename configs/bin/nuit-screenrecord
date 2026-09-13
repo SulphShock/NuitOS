@@ -8,7 +8,7 @@
 set -euo pipefail
 
 MODE="${1:-region}"
-DIR="${NUIT_SCREENRECORD_DIR:-${OMARCHY_SCREENRECORD_DIR:-$HOME/Videos}}"
+DIR="${NUIT_SCREENRECORD_DIR:-$HOME/Videos}"
 
 if pgrep -x gpu-screen-recorder >/dev/null 2>&1; then
   pkill -INT -x gpu-screen-recorder

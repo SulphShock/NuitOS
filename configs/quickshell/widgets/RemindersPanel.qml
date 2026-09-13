@@ -96,16 +96,16 @@ Rectangle {
                             font { family: Theme.fontFamily; pixelSize: 12; bold: true }
                         }
                         Text {
-                            text: SysState.reminderLabel(modelData.when)
-                                + "  ·  " + Qt.formatDateTime(new Date(modelData.when), "h:mm AP")
+                            // clock.seconds keeps "in Xm" ticking while open
+                            // (Date.now() alone is not a reactive dependency).
+                            text: {
+                                SysState.clock.seconds
+                                return SysState.reminderLabel(modelData.when)
+                                    + "  ·  " + Qt.formatDateTime(new Date(modelData.when), "h:mm AP")
+                            }
                             color: Theme.dimText
                             font { family: Theme.fontFamily; pixelSize: 9 }
                         }
-                    }
-                    Text {
-                        text: SysState.clock.seconds  // per-second refresh dependency
-                        visible: false
-                        font.pixelSize: 1
                     }
                     Rectangle {
                         Layout.preferredWidth: 26

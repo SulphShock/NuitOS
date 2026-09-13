@@ -1,0 +1,51 @@
+#!/bin/bash
+# nuit-browser-private — open the default browser in private/incognito mode.
+# Usage: nuit-browser-private [URL]
+#   Resolves the default browser via $BROWSER or xdg-settings and passes the
+#   matching private flag. Falls back to a plain open when the browser is
+#   unknown (private flags differ per browser and can't be probed safely).
+#   Bound to Super+Shift+B (Super+B opens the default browser normally).
+set -euo pipefail
+
+URL="${1:-https://}"
+
+browser_id() {
+    if [ -n "${BROWSER:-}" ]; then
+        basename "$BROWSER" | tr '[:upper:]' '[:lower:]'
+        return 0
+    fi
+    if command -v xdg-settings >/dev/null 2>&1; then
+        local desktop
+        desktop="$(xdg-settings get default-web-browser 2>/dev/null || true)"
+        [ -n "$desktop" ] && { basename "$desktop" .desktop | tr '[:upper:]' '[:lower:]'; return 0; }
+    fi
+    return 1
+}
+
+launch() { exec "$@" >/dev/null 2>&1 & }
+
+chromium_bin() {
+    if [ -n "${BROWSER:-}" ] && command -v "$BROWSER" >/dev/null 2>&1; then
+        printf '%s' "$BROWSER"
+        return 0
+    fi
+    local c
+    for c in brave-browser google-chrome-stable google-chrome chromium chromium-browser microsoft-edge opera vivaldi; do
+        if command -v "$c" >/dev/null 2>&1; then printf '%s' "$c"; return 0; fi
+    done
+    return 1
+}
+
+ID="$(browser_id || echo unknown)"
+case "$ID" in
+    *firefox*|*zen*|*librewolf*|*waterfox*)
+        launch "${BROWSER:-firefox}" --private-window "$URL" ;;
+    *chrom*|*brave*|*edge*|*opera*|*vivaldi*|*arc*)
+        if BIN="$(chromium_bin)"; then launch "$BIN" --incognito "$URL";
+        else xdg-open "$URL" >/dev/null 2>&1 & fi ;;
+    *epiphany*|*gnome-web*)
+        launch "${BROWSER:-epiphany}" --incognito-mode "$URL" ;;
+    *)
+        notify-send -a Nuit "Private mode unknown" "Opening normally in $ID" 2>/dev/null || true
+        xdg-open "$URL" >/dev/null 2>&1 & ;;
+esac

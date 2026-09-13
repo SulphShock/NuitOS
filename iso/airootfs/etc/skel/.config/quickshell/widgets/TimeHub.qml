@@ -78,6 +78,11 @@ Rectangle {
         dateEvents = next
         evField.text = ""
         saveEvents()
+        // You just typed it — no need for the day-fire to tell you about it.
+        if (selKey === dateKey(new Date())) {
+            evFired[selKey] = true
+            saveFired()
+        }
     }
     function delEvent(i) {
         const cur = (dateEvents[selKey] || []).slice()
@@ -89,10 +94,11 @@ Rectangle {
         saveEvents()
     }
 
+    // Reopen where you left off: month navigation and the selected day
+    // persist across opens (the Today button / Home key jumps back).
     onVisibleChanged: {
         if (visible) {
             panelIn.restart()
-            goToday()
             evLoad.reload()
         }
     }
@@ -140,13 +146,13 @@ Rectangle {
     RowLayout {
         id: contentRow
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 12
+        anchors.margins: 16
+        spacing: 16
 
         ColumnLayout {
-            Layout.preferredWidth: 336
+            Layout.preferredWidth: 372
             Layout.fillHeight: true
-            spacing: 10
+            spacing: 12
 
             RowLayout {
                 Layout.fillWidth: true
@@ -212,15 +218,15 @@ Rectangle {
             GridLayout {
                 Layout.fillWidth: true
                 columns: 7
-                columnSpacing: 6
-                rowSpacing: 6
+                columnSpacing: 8
+                rowSpacing: 8
                 Repeater {
                     model: panel.cells
                     delegate: Rectangle {
                         id: dayCell
                         required property var modelData
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 32
+                        Layout.preferredHeight: 36
                         radius: height / 2
                         color: modelData.isToday ? Theme.accent
                              : modelData.isSelected ? Theme.hoverStrong
@@ -354,6 +360,7 @@ Rectangle {
 
         YouTubeMusic {
             Layout.fillHeight: true
+            Layout.preferredWidth: 320
             radius: 0
         }
     }
@@ -364,14 +371,88 @@ Rectangle {
         watchChanges: true
         onLoaded: {
             try {
-                const obj = JSON.parse(text)
+                const obj = JSON.parse(text())
                 if (obj && typeof obj === "object") dateEvents = obj
             } catch (e) { dateEvents = ({}) }
             evRev++
+            panel.checkDayEvents()
         }
     }
     FileView {
         id: evWrite
         atomicWrites: true
+    }
+
+    // ── Day-fire: events notify on their day, across sessions ──
+    // Reminders fire via SysState; calendar events had no fire path, so a
+    // reboot on the day meant silence. A 60s timer checks yesterday+today:
+    // same-day events notify as "Today", yesterday's unfired ones as
+    // "Missed". Fired days persist (calendar-fired.json) so restarts and
+    // reboots never double-notify. Empty days stay unmarked — an event
+    // added later that day still fires.
+    property var evFired: ({})
+    property bool evFiredReady: false
+    onEvFiredReadyChanged: if (evFiredReady) checkDayEvents()
+    // First-run safety: a missing fired file never triggers onLoaded, so
+    // without this the gate below would stay shut forever. Loads always
+    // land well before 5s; the timer only fires when there was no file.
+    Timer { interval: 5000; running: !evFiredReady; onTriggered: evFiredReady = true }
+    readonly property string evFiredFile: (Quickshell.env("HOME") || "/home/user") + "/.local/share/nuit/calendar-fired.json"
+    FileView {
+        id: evFiredLoad
+        path: panel.evFiredFile
+        onLoaded: {
+            try {
+                const obj = JSON.parse(text())
+                if (obj && typeof obj === "object") evFired = obj
+            } catch (e) { evFired = ({}) }
+            evFiredReady = true
+            panel.checkDayEvents()
+        }
+    }
+    FileView {
+        id: evFiredWrite
+        atomicWrites: true
+    }
+    function saveFired() {
+        // Bound growth: drop markers older than a week on every write.
+        // NOTE: construct the Date from parts — the engine does not reliably
+        // parse date strings (dashes or slashes), and a NaN date silently
+        // dropped the just-fired marker, re-notifying every reboot.
+        const cutoff = Date.now() - 7 * 86400000
+        const kept = ({})
+        for (const k in evFired) {
+            const p = String(k).split("-")
+            if (p.length !== 3) continue
+            const d = new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]))
+            if (isNaN(d.getTime()) || d.getTime() < cutoff) continue
+            kept[k] = true
+        }
+        evFired = kept
+        evFiredWrite.path = evFiredFile
+        evFiredWrite.setText(JSON.stringify(kept))
+    }
+    function checkDayEvents() {
+        if (!evFiredReady) return
+        const now = new Date()
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const days = [
+            { key: dateKey(new Date(today.getTime() - 86400000)), label: "Missed yesterday" },
+            { key: dateKey(today), label: "Today" }
+        ]
+        for (const d of days) {
+            if (evFired[d.key]) continue
+            const evs = dateEvents[d.key] || []
+            if (evs.length === 0) continue
+            evFired[d.key] = true
+            saveFired()
+            SysState.runCmd(["notify-send", "-a", "Nuit", "-u", "critical",
+                d.label + (evs.length === 1 ? "" : " (" + evs.length + ")"),
+                evs.join("\n")])
+        }
+    }
+    Timer {
+        interval: 60000; repeat: true; running: true; triggeredOnStart: true
+        onTriggered: panel.checkDayEvents()
     }
 }

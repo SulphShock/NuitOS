@@ -49,12 +49,12 @@ Singleton {
         let resolved = name
         if (resolved === "network-wired") resolved = "network-wired-symbolic"
         if (resolved === "network-wireless-disconnected-symbolic") resolved = "network-wireless-disabled-symbolic"
-        if (resolved === "network-wireless-symbolic") resolved = "network-wireless-disabled-symbolic"
         if (resolved === "battery-level-100-charging-symbolic") resolved = "battery-level-100-charged-symbolic"
         if (resolved === "applications-system-symbolic") resolved = "preferences-system-symbolic"
         // Folder by family. Everything else lives in status/.
         let folder = "status"
         if (resolved === "camera-photo-symbolic") folder = "devices"
+        else if (resolved === "input-keyboard-symbolic") folder = "devices"
         else if (resolved === "view-refresh-symbolic") folder = "actions"
         else if (resolved === "system-shutdown-symbolic") folder = "actions"
         else if (resolved === "preferences-system-symbolic") folder = "categories"
@@ -91,6 +91,7 @@ Singleton {
         if (theme.green) green = theme.green
         if (theme.blue) blue = theme.blue
         if (theme.yellow) yellow = theme.yellow
-        if (theme.blue) accent = theme.blue
+        if (theme.accent) accent = theme.accent
+        else if (theme.blue) accent = theme.blue
     }
 }

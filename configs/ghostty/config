@@ -3,3 +3,10 @@ font-family = "JetBrainsMono Nerd Font"
 background-opacity = 1
 window-padding-x = 8
 window-padding-y = 8
+
+# Theme by reference (built-in) — no hardcoded palette here.
+theme = Gruvbox Dark Hard
+
+# I-beam line cursor with blink animation.
+cursor-style = bar
+cursor-style-blink = true

@@ -1,0 +1,56 @@
+#!/bin/bash
+# nuit-theme-bg-pick — choose from preloaded backgrounds (Super+Ctrl+Space)
+# Usage: nuit-theme-bg-pick [--random]
+#   fuzzel menu over ~/.config/nuit/backgrounds/[theme] (the 5 preloaded
+#   ones live in .../default); applies the choice via nuit-theme-bg-set.
+#   --random defers to nuit-theme-bg-next --random (used at boot).
+set -euo pipefail
+
+THEME="${NUIT_THEME:-default}"
+BG_DIR="$HOME/.config/nuit/backgrounds/$THEME"
+
+need() {
+    command -v "$1" >/dev/null 2>&1 || { echo "Missing: $1 ($2)" >&2; exit 1; }
+}
+
+if [ "${1:-}" = "--random" ]; then
+    SETTER_NEXT="$HOME/.local/bin/nuit-theme-bg-next"
+    [ -x "$SETTER_NEXT" ] || SETTER_NEXT="/usr/local/bin/nuit-theme-bg-next"
+    [ -x "$SETTER_NEXT" ] || SETTER_NEXT="nuit-theme-bg-next"
+    exec "$SETTER_NEXT" --random
+fi
+
+need fuzzel "install: fuzzel"
+
+mkdir -p "$BG_DIR"
+mapfile -t FILES < <(find "$BG_DIR" -maxdepth 1 -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.webp" -o -iname "*.jxl" \) | sort)
+if [ "${#FILES[@]}" -eq 0 ]; then
+    notify-send -a Nuit "No wallpapers" "Add images to $BG_DIR" 2>/dev/null || true
+    echo "No backgrounds in $BG_DIR" >&2
+    exit 1
+fi
+
+CURRENT=""
+if [ -L "$HOME/.config/nuit/current/background" ]; then
+    CURRENT="$(basename "$(readlink -f "$HOME/.config/nuit/current/background" 2>/dev/null || true)")"
+fi
+
+MENU=""
+for f in "${FILES[@]}"; do
+    b="$(basename "$f")"
+    if [ "$b" = "$CURRENT" ]; then MENU+="● $b"$'\n'; else MENU+="$b"$'\n'; fi
+done
+
+CHOICE="$(printf '%s' "$MENU" | fuzzel --dmenu -p "Wallpaper: " 2>/dev/null || true)"
+[ -n "$CHOICE" ] || exit 0
+CHOICE="${CHOICE#● }"
+
+for f in "${FILES[@]}"; do
+    if [ "$(basename "$f")" = "$CHOICE" ]; then
+        SETTER="$HOME/.local/bin/nuit-theme-bg-set"
+        [ -x "$SETTER" ] || SETTER="/usr/local/bin/nuit-theme-bg-set"
+        exec "$SETTER" "$f"
+    fi
+done
+echo "Selection no longer exists: $CHOICE" >&2
+exit 1

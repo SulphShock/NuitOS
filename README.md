@@ -55,12 +55,12 @@ Output: `NuitOS-YYYY.MM.DD-x86_64.iso` in `./out/`
 Verify your download before flashing:
 
 ```bash
-sha256sum -c NuitOS-*.iso.sha256
+sha256sum -c out/NuitOS-*.iso.sha256
 ```
 
 ### Run
 
-1. Flash the ISO to a USB stick (UEFI-only distro — the installer uses systemd-boot and refuses BIOS; the live session boots UEFI. `BIOS boot: unsupported.`)
+1. Flash the ISO to a USB stick (the installer is UEFI-only — it uses systemd-boot and refuses BIOS; the live session itself boots both UEFI and BIOS. `BIOS install: unsupported.`)
 2. Boot the live session into Hyprland
 
 Done. You have a working desktop.
@@ -75,7 +75,7 @@ From the live session, run:
 nuit-installer
 ```
 
-It asks for disk, filesystem (ext4/btrfs), swap, LUKS2 encryption, locale/keymap/timezone, user, hostname, and whether to enable **autologin** (default: off — you log in with your password at the gruvbox slick-greeter screen). Use `nuit-installer --dry-run` to preview the plan without touching the disk (read-only, never prompts GO, exit 0).
+It asks for disk, filesystem (ext4/btrfs), swap, LUKS2 encryption, user, hostname, and whether to enable **autologin** (default: off — you log in with your password at the gruvbox slick-greeter screen). v1.0 ships locale/keymap/timezone fixed as en_US/us/Etc/UTC by design; change post-install via `localectl` + `timedatectl`. Use `nuit-installer --dry-run` to preview the plan without touching the disk (read-only, never prompts GO, exit 0).
 
 LUKS installs encrypt swap too (swapfile inside the encrypted root — no plain-text swap). Note: encrypted swap means no hibernation/suspend-to-disk by design; suspend-to-RAM still works.
 
@@ -125,15 +125,15 @@ NuitOS ships **bash** by default. To use another shell, add it to `iso/packages.
 point the `-s` flag in `iso/airootfs/root/customize_airootfs.sh` at it:
 
 ```diff
-- useradd -m -G wheel,audio,video,storage -s /bin/bash nuitos
-+ useradd -m -G wheel,audio,video,storage -s /bin/fish nuitos
+- useradd -m -G wheel,audio,video,storage,autologin -s /bin/bash nuitos
++ useradd -m -G wheel,audio,video,storage,autologin -s /bin/fish nuitos
 ```
 
 ### Use your own topbar
 
-Don't like the topbar? Disable it in `configs/hyprland/hyprland.conf`:
+Don't like the topbar? Comment out this line in `configs/hyprland/hyprland.conf`:
 ```bash
-exec-once = # commented out
+# exec-once = qs -d
 ```
 
 Use waybar, eww, or nothing.
@@ -153,8 +153,9 @@ after 30 the machine suspends. Any key or mouse wiggle resets the timers.
   to `configs/quickshell/widgets/IdleOverlay.qml` via
   `qs ipc call gsb setIdle true|false`.
 - **Disable a stage:** comment out its whole `listener { ... }` block. To
-  turn idle handling off entirely, comment out `exec-once = hypridle` in
-  `configs/hyprland/hyprland.conf`.
+  turn idle handling off entirely, comment out the
+  `exec-once = systemctl --user start hyprpaper.service hypridle.service`
+  line in `configs/hyprland/autostart.conf`.
 - **Add a stage:** copy a `listener` block and change the timeout + command
   (keep timeouts in ascending order). Each block documents its own knob.
 
@@ -208,7 +209,7 @@ sudo ./scripts/nuit-release.sh
 - `ghostty` (terminal)
 - `bash` (shell)
 - `neovim` + `vim` (editors)
-- `thunar` (file manager)
+- `nautilus` (file manager)
 - NetworkManager (networking)
 - `git`
 
@@ -218,11 +219,11 @@ sudo ./scripts/nuit-release.sh
 **Also ships:** `gimp`, `file-roller` — a bootable, day-one desktop.
 - Live session: `firefox` (browser), `mpv` (media). No display manager live — tty1 autologin straight into Hyprland for user `nuitos` only.
 - Installed disk: `firefox` (browser), `LightDM + slick-greeter` (login), `mpv` (media).
-- Both: `zed`, `obsidian`, `nodejs` + `npm` (nvim LSP/Treesitter need them), `socat` + `yt-dlp` (QuickShell music needs them). Notes, chat, and anything else via `yay`.
+- Both: `nodejs` + `npm` (nvim LSP/Treesitter need them), `socat` + `yt-dlp` (QuickShell music needs them). Live session also ships `zed` and `obsidian`. Notes, chat, and anything else via `yay`.
 
 **Developers:** the ISO ships `base-devel` (C toolchain, includes gcc/make/pkgconf) plus `nodejs`/`npm` — install `cmake` post-setup with `yay -S cmake` if your editor plugins need it.
 
-**Editor:** neovim uses gruvbox-dark (hard) with `Super+Shift+F` for files (`Space f` works everywhere as fallback), arrow keys in the tree (`n` rename, `a` new, `dd` delete, `r` refresh). Treesitter parsers install on demand with `:TSInstallNuit`. LSP starts only for servers you have installed — silence there means "not installed," not "broken".
+**Editor:** neovim uses gruvbox-dark (hard) with space as leader: `<leader>ff`/`fg`/`fb` find files/grep/buffers via Telescope, `<leader>e` toggles the file tree, arrow keys in the tree (`n` rename, `a` new, `dd` delete, `r` refresh). Treesitter parsers auto-install on demand (`:TSUpdate` refreshes). LSP starts only for servers you have installed — silence there means "not installed," not "broken".
 
 ---
 
@@ -253,7 +254,7 @@ Hyprland defaults:
 | <kbd>Super</kbd> + Click/Drag | Move/resize window |
 | <kbd>Super</kbd> + mouse wheel | Switch workspace |
 
-Full config: `configs/hyprland/` (entry `hyprland.conf` sources `env/appearance/rules/autostart/bindings`)
+Full config: `configs/hyprland/` (entry `hyprland.conf` sources `env/appearance/rules/autostart`)
 
 ---
 
@@ -297,7 +298,7 @@ Thanks to the MIT projects this shell learned from. Code names what it does. Ful
 - BibekBhusal0/omarchy-better-menu - launcher fuzzy ideas
 - itsdotdev/omarchy-youtube-music - music backend ideas
 - 3EYE3Y3/omarchy-capture-board - capture converter ideas
-- brvier/PlanovaQuickShell + Planova - day file format
+- Manas-Kenge/omaview - TimeHub day file format ideas
 
 ## 📜 License
 

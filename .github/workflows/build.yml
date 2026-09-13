@@ -4,15 +4,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: archlinux:latest
+      image: archlinux:base-20260906.0.587075
       options: --privileged
     steps:
       - uses: actions/checkout@v5
       - name: Install archiso
-        run: pacman -Sy --noconfirm archiso git diffutils
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Syu --noconfirm archiso git base-devel diffutils qemu-system-x86
       - name: Build ISO
         run: |
           export NUIT_WORK=/tmp/nuitos-build
           ./scripts/nuit-release.sh
           ls -lh out/*.iso
-          sha256sum out/*.iso | tee out/SHA256SUMS
+          (cd out && for f in *.iso; do sha256sum "$f" | tee "$f.sha256"; done)
+      - name: Boot smoke test (QEMU)
+        run: |
+          ISO=$(ls out/*.iso | head -n 1)
+          echo "Booting $ISO for smoke test"
+          timeout 120 qemu-system-x86_64 -m 2G -cdrom "$ISO" -boot d -display none -serial stdio -no-reboot > /tmp/qemu-serial.log 2>&1 || true
+          cat /tmp/qemu-serial.log || true
+          grep -Ei "login:|archiso|root@|nuitos" /tmp/qemu-serial.log || { echo "Boot smoke test failed: no login marker in 120s"; exit 1; }

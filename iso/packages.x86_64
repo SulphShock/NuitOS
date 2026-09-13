@@ -120,6 +120,8 @@ obsidian
 # these; the live session needs them too or the desktop ships broken.
 quickshell
 hyprlock
+hyprpicker
+hyprshade
 fuzzel
 gum
 jq
@@ -130,4 +132,24 @@ mpv
 yt-dlp
 socat
 tesseract
+tesseract-data-eng
 zbar
+procps-ng
+iproute2
+file
+cliphist
+
+# Live graphics + Qt stack (Hyprland needs GL, QuickShell needs Qt modules)
+mesa
+vulkan-virtio
+qt6-declarative
+qt6-svg
+qt6-imageformats
+upower
+adwaita-icon-theme
+kvantum
+
+# Live boot (mkinitcpio hooks reference these; without them the hooks are dead)
+intel-ucode
+amd-ucode
+plymouth

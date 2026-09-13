@@ -20,7 +20,7 @@ ShellRoot {
             // ── Popup layer (Quick Settings + Calendar + Reminders) with click-away scrim ──
             PanelWindow {
                 screen: scr.modelData
-                visible: SysState.qsOpen || SysState.settingsOpen || SysState.remOpen || SysState.btOpen || SysState.wifiOpen || SysState.capOpen || SysState.ytOpen || SysState.hubOpen || SysState.notifOpen
+                visible: SysState.qsOpen || SysState.settingsOpen || SysState.remOpen || SysState.btOpen || SysState.wifiOpen || SysState.capOpen || SysState.ytOpen || SysState.hubOpen || SysState.notifOpen || SysState.keysOpen
                 anchors { top: true; bottom: true; left: true; right: true }
                 exclusionMode: ExclusionMode.Ignore
                 color: "transparent"
@@ -75,6 +75,10 @@ ShellRoot {
                     anchors { top: parent.top; horizontalCenter: parent.horizontalCenter
                               topMargin: Theme.barHeight + 8 }
                 }
+                KeybindsPanel {
+                    visible: SysState.keysOpen
+                    anchors.centerIn: parent
+                }
             }
 
             // ── App menu (modal, keyboard capture, blurred backdrop) ──
@@ -128,6 +132,7 @@ ShellRoot {
         function toggleActivities(): void    { SysState.toggleActivities() }
         function toggleSettings(): void      { SysState.toggleSettings() }
         function toggleReminders(): void     { SysState.toggleReminders() }
+        function toggleKeybinds(): void      { SysState.toggleKeybinds() }
         function toggleBluetooth(): void     { SysState.toggleBluetooth() }
         function toggleWifi(): void          { SysState.toggleWifi() }
         function toggleCaptureBoard(): void  { SysState.toggleCaptureBoard() }

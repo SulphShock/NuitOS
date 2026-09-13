@@ -11,7 +11,9 @@ import "../lib/FuzzySearch.js" as Fuzzy
 Rectangle {
     id: menu
     color: Theme.scrim
-    focus: visible
+    // No focus scope of our own: keys bubble up here from the focused
+    // search field. (A root `focus: visible` here used to steal the
+    // TextField's focus on open, so typed keys never reached search.)
 
     // Launcher-wide keys: hold even when the search box lost focus.
     Keys.onEscapePressed: SysState.actOpen = false
@@ -23,7 +25,6 @@ Rectangle {
 
     property int selectedIndex: 0
     property bool gridView: true
-    property int gridCols: 5
 
     // Entries hidden on request: none right now. Owner will say what to
     // hide later; until then everything installed is shown.
@@ -48,10 +49,9 @@ Rectangle {
             .slice()
             .sort((x, y) => x.name.localeCompare(y.name))
     }
-    Connections {
-        target: DesktopEntries.applications
-        function onCountChanged() { menu.appRev++ }
-    }
+    // (No live entry-count signal on DesktopEntries.applications — the
+    // open-time bump below is the refresh path. A Connections onCountChanged
+    // here only logged a warning, so it was removed.)
 
     function bookmarkFor(a) {
         return {
@@ -179,7 +179,9 @@ Rectangle {
     }
     function moveSelection(dx, dy) {
         if (filteredApps.length === 0) return
-        const cols = gridView && gridVisible ? gridCols : 1
+        // Real column count, not the hardcoded guess: narrow screens fit
+        // fewer 118px tiles, and Up/Down must jump a true row.
+        const cols = gridView && gridVisible ? Math.max(1, Math.floor(appGrid.width / appGrid.cellWidth)) : 1
         selectedIndex = Math.min(filteredApps.length - 1, Math.max(0, selectedIndex + dx + dy * cols))
         const view = gridView && gridVisible ? appGrid : appList
         view.positionViewAtIndex(selectedIndex, ListView.Contain)
@@ -233,7 +235,7 @@ Rectangle {
                     asynchronous: true
                     scale: logoMa.containsMouse ? 1.08 : 1
                     Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                    MouseArea { id: logoMa; anchors.fill: parent; hoverEnabled: true }
+                    MouseArea { id: logoMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: gridView = !gridView }
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
@@ -261,6 +263,10 @@ Rectangle {
 
         TextField {
             id: search
+            // Declarative focus: retried by Qt on every window activation,
+            // unlike the one-shot forceActiveFocus below which can fire
+            // before the layer maps and get silently lost.
+            focus: true
             width: Math.min(560, parent.width)
             height: 46
             anchors.horizontalCenter: parent.horizontalCenter
@@ -282,8 +288,8 @@ Rectangle {
                 const ctrl = (event.modifiers & Qt.ControlModifier) !== 0
                 if (event.key === Qt.Key_Down) { menu.moveSelection(0, 1); event.accepted = true }
                 else if (event.key === Qt.Key_Up) { menu.moveSelection(0, -1); event.accepted = true }
-                else if (event.key === Qt.Key_Left) { if (menu.gridVisible) menu.moveSelection(-1, 0); event.accepted = true }
-                else if (event.key === Qt.Key_Right) { if (menu.gridVisible) menu.moveSelection(1, 0); event.accepted = true }
+                else if (event.key === Qt.Key_Left) { if (menu.gridVisible) { menu.moveSelection(-1, 0); event.accepted = true } }
+                else if (event.key === Qt.Key_Right) { if (menu.gridVisible) { menu.moveSelection(1, 0); event.accepted = true } }
                 else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) { menu.gridView = !menu.gridView; event.accepted = true }
                 else if ((event.key === Qt.Key_J && ctrl)) { menu.moveSelection(0, 1); event.accepted = true }
                 else if ((event.key === Qt.Key_K && ctrl)) { menu.moveSelection(0, -1); event.accepted = true }
@@ -296,11 +302,8 @@ Rectangle {
                 else if (event.key === Qt.Key_Home) { menu.selectedIndex = 0; event.accepted = true }
                 else if (event.key === Qt.Key_End) { menu.selectedIndex = menu.filteredApps.length - 1; event.accepted = true }
             }
-            Keys.onReturnPressed: {
-                if (menu.calcResult !== null && search.text.trim() !== "") menu.launchSelected()
-                else if (menu.filteredApps.length > 0) menu.launchSelected()
-                else menu.openWebSearch()
-            }
+            Keys.onReturnPressed: menu.confirm()
+            Keys.onEnterPressed: menu.confirm()
         }
 
         // Calculator answer. Enter copies it.
@@ -555,5 +558,12 @@ Rectangle {
             font { family: Theme.fontFamily; pixelSize: 10 }
             opacity: 0.7
         }
+    }
+
+    // Shared confirm path for main + numpad Enter.
+    function confirm() {
+        if (calcResult !== null && search.text.trim() !== "") launchSelected()
+        else if (filteredApps.length > 0) launchSelected()
+        else openWebSearch()
     }
 }

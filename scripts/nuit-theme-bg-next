@@ -4,7 +4,7 @@
 # Walks ~/.config/nuit/backgrounds/[theme] alphabetically, wraps around.
 set -euo pipefail
 
-THEME="${NUIT_THEME:-${OMARCHY_THEME:-default}}"
+THEME="${NUIT_THEME:-default}"
 BG_DIR="$HOME/.config/nuit/backgrounds/$THEME"
 CURRENT_LINK="$HOME/.config/nuit/current/background"
 

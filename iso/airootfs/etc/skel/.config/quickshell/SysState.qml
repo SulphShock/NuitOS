@@ -20,9 +20,10 @@ Singleton {
     property bool ytOpen: false
     property bool hubOpen: false
     property bool notifOpen: false
+    property bool keysOpen: false
     property bool idleDim: false
     property string username: "user"
-    function closeAll() { qsOpen = actOpen = settingsOpen = remOpen = btOpen = wifiOpen = capOpen = ytOpen = hubOpen = notifOpen = false }    function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
+    function closeAll() { qsOpen = actOpen = settingsOpen = remOpen = btOpen = wifiOpen = capOpen = ytOpen = hubOpen = notifOpen = keysOpen = false }    function toggleQs()         { const v = qsOpen;    closeAll(); qsOpen    = !v }
     function toggleHub()        { const v = hubOpen;   closeAll(); hubOpen   = !v }
     function toggleNotifs() {
         const v = notifOpen
@@ -36,6 +37,7 @@ Singleton {
     function toggleBluetooth()  { const v = btOpen;    closeAll(); btOpen    = !v }
     function toggleWifi()       { const v = wifiOpen;  closeAll(); wifiOpen  = !v }
     function toggleCaptureBoard() { const v = capOpen; closeAll(); capOpen   = !v }
+    function toggleKeybinds()     { const v = keysOpen; closeAll(); keysOpen  = !v }
     function toggleYouTubeMusic() { const v = ytOpen; closeAll(); ytOpen = !v }
     // Browser-tab finder: focuses a music.youtube.com tab in any window,
     // or opens one fresh when nothing's around.
@@ -134,6 +136,19 @@ Singleton {
     property bool wifiScanning: false
 
     function refreshNetwork() { nmWifi.running = true; nmDev.running = true }
+    // nmcli terse escapes literal colons as \: — split on unescaped ones only.
+    function splitTerse(line) {
+        const out = []
+        let cur = "", esc = false
+        for (const ch of line) {
+            if (esc) { cur += ch; esc = false }
+            else if (ch === "\\") esc = true
+            else if (ch === ":") { out.push(cur); cur = "" }
+            else cur += ch
+        }
+        out.push(cur)
+        return out
+    }
     function scanWifi() { wifiError = ""; wifiScanning = true; nmScan.running = true }
     function connectWifi(ssid, password) {
         wifiError = ""
@@ -142,7 +157,7 @@ Singleton {
             : ["nmcli", "device", "wifi", "connect", ssid, "password", password]
         nmConnect.running = true
     }
-    Component.onCompleted: { refreshNetwork(); refreshBt(); blProbe.running = true; ppGet.running = true; whoami.running = true; remMkdir.running = true }
+    Component.onCompleted: { refreshNetwork(); refreshBt(); blProbe.running = true; ppGet.running = true; whoami.running = true; remMkdir.running = true; nmMonitor.running = true }
 
     Process {
         id: whoami
@@ -161,24 +176,31 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 root.wired = false; root.wifiSsid = ""
+                let haveWifi = false
                 for (const l of text.trim().split("\n")) {
                     const p = l.split(":")
                     if (p.length >= 3) {
-                        if (p[0] === "wifi" && p[1] === "connected")
+                        if (p[0] === "wifi" && p[1] === "connected") {
                             root.wifiSsid = p.slice(2).join(":")
+                            haveWifi = true
+                        }
                         if (p[0] === "ethernet" && p[1] === "connected")
                             root.wired = true
                     }
                 }
+                if (!haveWifi) root.wifiStrength = 0
             }
         }
     }
-    // Event stream: re-query whenever NetworkManager state changes
+    // Event stream: re-query whenever NetworkManager state changes.
+    // nmcli monitor runs forever; restart it (debounced) if it ever exits.
     Process {
         id: nmMonitor
         command: ["nmcli", "monitor"]
         stdout: SplitParser { onRead: root.refreshNetwork() }
+        onExited: monRestart.restart()
     }
+    Timer { id: monRestart; interval: 3000; onTriggered: nmMonitor.running = true }
     Timer {   // periodic signal-strength sampling
         interval: 5000; running: root.wifiEnabled; repeat: true; triggeredOnStart: true
         onTriggered: nmSignal.running = true
@@ -210,12 +232,12 @@ Singleton {
             onStreamFinished: {
                 const found = []
                 for (const line of text.trim().split("\n")) {
-                    const parts = line.split(":")
+                    const parts = splitTerse(line)
                     if (parts.length < 4 || parts[1] === "") continue
                     const ssid = parts[1]
                     if (!found.some(n => n.ssid === ssid))
                         found.push({ connected: parts[0] === "*", ssid: ssid,
-                            strength: parseInt(parts[2]) || 0, secured: parts.slice(3).join(":") !== "" })
+                            strength: parseInt(parts[2]) || 0, secured: parts[3] !== "" })
                 }
                 root.wifiNetworks = found
             }
@@ -226,7 +248,7 @@ Singleton {
         id: nmConnect
         onExited: exitCode => {
             if (exitCode !== 0) root.wifiError = "Could not connect to that network"
-            else root.refreshNetwork()
+            else root.scanWifi()
         }
     }
 
@@ -247,7 +269,7 @@ Singleton {
     }
     Process {
         id: ipProc
-        command: ["sh", "-c", "ip -o -4 route get 1.1.1.1 2>/dev/null | awk '{print $7}'"]
+        command: ["sh", "-c", "ip -o -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i==\"src\"){print $(i+1); exit}}'"]
         stdout: StdioCollector {
             onStreamFinished: root.localIp = text.trim()
         }
@@ -287,9 +309,12 @@ Singleton {
         let cur = null
         for (const line of text.split("\n")) {
             if (line === "" || /^\s*State/.test(line)) continue
-            if (!/^\s/.test(line)) { cur = null; continue }
+            // A new socket header resets ownership (its own users: may follow
+            // on the same line or not at all); byte counters below attribute
+            // to whatever process was last seen, on ANY line layout.
+            if (!/^\s/.test(line)) cur = null
             let m = line.match(/users:\(\("([^"]+)",pid=(\d+)/)
-            if (m) { cur = m[1]; if (!totals[cur]) totals[cur] = { rx: 0, tx: 0 }; continue }
+            if (m) { cur = m[1]; if (!totals[cur]) totals[cur] = { rx: 0, tx: 0 } }
             if (cur) {
                 m = line.match(/bytes_acked:(\d+)/)
                 if (m) totals[cur].tx += parseInt(m[1])
@@ -377,7 +402,17 @@ Singleton {
     property bool bluetoothScanning: false
     property string btPendingPair: ""
     function refreshBt() { btShow.running = true }
-    function refreshBtLists() { btScan.running = true; btConnectedScan.running = true; btPairedScan.running = true }
+    property int btPendingScans: 0
+    function refreshBtLists() {
+        root.btPendingScans = 3
+        btScan.running = true; btConnectedScan.running = true; btPairedScan.running = true
+    }
+    // Each list scan reports back; the spinner stops only when all three
+    // land, so partial state never reads as "done".
+    function btScanDone() {
+        root.btPendingScans = Math.max(0, root.btPendingScans - 1)
+        if (root.btPendingScans === 0) root.bluetoothScanning = false
+    }
     Process {
         id: btShow
         command: ["bluetoothctl", "show"]
@@ -439,6 +474,7 @@ Singleton {
             btDisconnect.command = ["bluetoothctl", "disconnect", address]
             btDisconnect.running = true
         } else if (action === "pair") {
+            if (btPendingPair !== "") return   // pairing already in flight
             btPendingPair = address
             btPair.command = ["bluetoothctl", "pair", address]
             btPair.running = true
@@ -479,7 +515,10 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: { root.btDevices = parseBtDevices(text); root.rebuildBt() }
         }
-        onExited: exitCode => { root.bluetoothScanning = false; if (exitCode !== 0) root.btError = "Unable to scan Bluetooth devices" }
+        onExited: exitCode => {
+            if (exitCode !== 0) root.btError = "Unable to scan Bluetooth devices"
+            root.btScanDone()
+        }
     }
     Process {
         id: btConnectedScan
@@ -487,6 +526,7 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: { root.btConnectedAddresses = parseBtAddresses(text); root.rebuildBt() }
         }
+        onExited: root.btScanDone()
     }
     Process {
         id: btPairedScan
@@ -494,6 +534,7 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: { root.btPairedAddresses = parseBtAddresses(text); root.rebuildBt() }
         }
+        onExited: root.btScanDone()
     }
     Process {
         id: btConnect
@@ -556,7 +597,7 @@ Singleton {
         watchChanges: true
         onLoaded: {
             try {
-                const arr = JSON.parse(text)
+                const arr = JSON.parse(text())
                 if (Array.isArray(arr)) root.btPins = arr.filter(a => typeof a === "string")
             } catch (e) { root.btPins = [] }
         }
@@ -591,10 +632,21 @@ Singleton {
         command: ["brightnessctl", "-m"]   // name,class,cur,pct,max
         stdout: StdioCollector {
             onStreamFinished: {
-                const f = text.trim().split("\n")[0].split(",")
-                root.blDevice = f[0]
-                root.blMax = parseInt(f[4]) || 1
-                root.brightness = Math.min(1, (parseInt(f[2]) || 1) / root.blMax)
+                // Prefer a real backlight device; brightnessctl -m lists
+                // keyboard LEDs etc. too, and first-line wins was a lottery.
+                const lines = text.trim().split("\n").filter(l => l.trim() !== "")
+                let pick = []
+                for (const l of lines) {
+                    const f = l.split(",")
+                    if (f.length >= 5 && f[0] !== "") {
+                        if (pick.length === 0) pick = f
+                        if (f[1] === "backlight") { pick = f; break }
+                    }
+                }
+                if (pick.length === 0 || pick[0] === "") return   // no backlight: stay hidden
+                root.blDevice = pick[0]
+                root.blMax = parseInt(pick[4]) || 1
+                root.brightness = Math.min(1, (parseInt(pick[2]) || 1) / root.blMax)
                 blRead.path = "/sys/class/backlight/" + root.blDevice + "/brightness"
             }
         }
@@ -604,7 +656,7 @@ Singleton {
         watchChanges: true
         onFileChanged: reload()
         onLoaded: {
-            const v = parseInt(text)
+            const v = parseInt(text())
             if (!isNaN(v) && root.blMax > 0) root.brightness = Math.min(1, Math.max(0.03, v / root.blMax))
         }
     }
@@ -657,20 +709,23 @@ Singleton {
     // launches the full refresh — clock, pacman, AUR, flatpak — in a
     // terminal so sudo + confirmations stay visible.
     property int pendingUpdates: -1   // -1 = haven't checked yet
+    property bool updatesUnknown: false  // true when yay is missing/broken
     property double lastUpdateCheck: 0
-    readonly property string updateSubtitle: pendingUpdates < 0 ? "Checking…"
+    readonly property string updateSubtitle: updatesUnknown ? "Install yay to check"
+        : pendingUpdates < 0 ? "Checking…"
         : pendingUpdates === 0 ? "Up to date" : pendingUpdates + " waiting"
     Process {
         id: updCheck
-        command: ["sh", "-c", "yay -Qu 2>/dev/null | wc -l"]
+        command: ["sh", "-c", "command -v yay >/dev/null 2>&1 || { echo -1; exit 0; }; yay -Qu 2>/dev/null | wc -l"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const n = parseInt(text.trim())
-                root.pendingUpdates = isNaN(n) ? 0 : n
+                if (isNaN(n) || n < 0) { root.updatesUnknown = true; root.pendingUpdates = -1 }
+                else { root.updatesUnknown = false; root.pendingUpdates = n }
                 root.lastUpdateCheck = Date.now()
             }
         }
-        onExited: code => { if (code !== 0) { root.pendingUpdates = 0; root.lastUpdateCheck = Date.now() } }
+        onExited: code => { if (code !== 0) { root.updatesUnknown = true; root.pendingUpdates = -1; root.lastUpdateCheck = Date.now() } }
     }
     function checkUpdates() { updCheck.running = true }
     // Gentle throttle: UI entry points re-check at most every 30 min.
@@ -679,7 +734,7 @@ Singleton {
     }
     function runOsUpdate() {
         const script = (Quickshell.env("HOME") || ("/home/" + root.username)) + "/.config/quickshell/lib/os-update.sh"
-        runCmd(["ghostty", "-e", script])
+        termRun([script])
     }
     Timer {
         interval: 6 * 3600000; repeat: true; running: true; triggeredOnStart: true
@@ -687,14 +742,35 @@ Singleton {
     }
 
     // ──────────────────────── logind actions + app launcher ─────────────────────────
-    Process { id: sysProc }
-    function runCmd(cmd) { sysProc.command = cmd; sysProc.running = true }
+    // runCmd is serialized through a queue: overlapping callers (power keys,
+    // welcome dismiss, portal opener) can no longer overwrite each other's
+    // command mid-flight on the previously shared single Process.
+    property var cmdQueue: []
+    property bool cmdBusy: false
+    Process {
+        id: sysProc
+        onExited: { root.cmdBusy = false; root.pumpCmd() }
+    }
+    function runCmd(cmd) { cmdQueue = cmdQueue.concat([cmd]); pumpCmd() }
+    function pumpCmd() {
+        if (cmdBusy || cmdQueue.length === 0) return
+        cmdBusy = true
+        sysProc.command = cmdQueue[0]
+        cmdQueue = cmdQueue.slice(1)
+        sysProc.running = true
+    }
     function powerOff() { runCmd(["systemctl", "poweroff"]) }
     function reboot()   { runCmd(["systemctl", "reboot"]) }
     function suspend()  { runCmd(["systemctl", "suspend"]) }
     function hibernate() { runCmd(["systemctl", "hibernate"]) }
     function lock()     { runCmd(["loginctl", "lock-session"]) }
-    function logout()   { runCmd(["loginctl", "terminate-user", root.username]) }
+    // Prefer the current session; fall back to the resolved username since
+    // whoami lands async and the "user" default may be wrong on early clicks.
+    function logout() {
+        runCmd(["sh", "-c", "loginctl terminate-session \"${XDG_SESSION_ID:-}\" 2>/dev/null || loginctl terminate-user \"" + root.username.replace(/"/g, "") + "\""])
+    }
+    // Run argv inside the first available terminal (ghostty → kitty → alacritty).
+    function termRun(args) { runCmd(["nuit-term-run"].concat(args)) }
 
     Process { id: launcher }
     function launch(execLine) {
@@ -721,8 +797,10 @@ Singleton {
         if (m) return Date.now() + (parseInt(m[1]) * 60 + parseInt(m[2])) * 60000
         m = s.match(/^(\d{1,2}):(\d{2})$/)
         if (m) {
+            const h = parseInt(m[1]), mi = parseInt(m[2])
+            if (h > 23 || mi > 59) return 0
             const d = new Date()
-            d.setHours(parseInt(m[1]), parseInt(m[2]), 0, 0)
+            d.setHours(h, mi, 0, 0)
             if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1)
             return d.getTime()
         }
@@ -764,10 +842,12 @@ Singleton {
         if (due.length === 0) return
         reminders = reminders.filter(r => r.when > now)
         saveReminders()
-        for (const r of due) {
-            remNotify.command = ["notify-send", "-a", "Nuit", "-u", "critical", "Reminder", r.text]
-            remNotify.running = true
-        }
+        // One combined notification: the shared Process can only carry one
+        // command at a time, so a burst previously collapsed to a single item.
+        remNotify.command = ["notify-send", "-a", "Nuit", "-u", "critical",
+            due.length === 1 ? "Reminder" : "Reminders (" + due.length + ")",
+            due.map(r => r.text).join("\n")]
+        remNotify.running = true
     }
     Process { id: remNotify }
     Process {
@@ -781,12 +861,23 @@ Singleton {
         watchChanges: true
         onLoaded: {
             try {
-                const arr = JSON.parse(text)
+                const arr = JSON.parse(text())
                 if (Array.isArray(arr)) {
-                    root.reminders = arr.filter(r => r && r.when > Date.now() - 60000)
+                    // Overdue-but-recent reminders fire immediately instead of
+                    // vanishing: the shell may have been closed when they came
+                    // due. Anything older than a day is stale — drop it.
+                    const now = Date.now()
+                    const overdue = arr.filter(r => r && r.when <= now && now - r.when < 86400000)
+                    root.reminders = arr.filter(r => r && r.when > now)
                         .sort((a, b) => a.when - b.when)
-                    for (const r of root.reminders)
+                    for (const r of root.reminders.concat(overdue))
                         if (r.id > root.remSeq) root.remSeq = r.id
+                    if (overdue.length > 0) {
+                        remNotify.command = ["notify-send", "-a", "Nuit", "-u", "critical",
+                            overdue.length === 1 ? "Missed reminder" : "Missed reminders (" + overdue.length + ")",
+                            overdue.map(r => r.text).join("\n")]
+                        remNotify.running = true
+                    }
                 }
             } catch (e) { root.reminders = [] }
         }

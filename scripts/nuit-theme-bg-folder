@@ -2,7 +2,7 @@
 # nuit-theme-bg-folder — open the backgrounds folder
 # Usage: nuit-theme-bg-folder
 set -euo pipefail
-THEME="${NUIT_THEME:-${OMARCHY_THEME:-default}}"
+THEME="${NUIT_THEME:-default}"
 BG_DIR="$HOME/.config/nuit/backgrounds/$THEME"
 mkdir -p "$BG_DIR"
 if command -v nautilus >/dev/null 2>&1; then

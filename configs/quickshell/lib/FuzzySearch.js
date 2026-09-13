@@ -9,9 +9,11 @@ function isBoundary(text, index) {
 
 function scoreToken(rawQuery, rawText) {
   if (!rawText) return -1;
-  var caseSensitive = rawQuery !== rawQuery.toLowerCase();
-  var query = caseSensitive ? rawQuery : rawQuery.toLowerCase();
-  var text = caseSensitive ? String(rawText) : String(rawText).toLowerCase();
+  // Matching is always case-insensitive: requiring exact case turned any
+  // uppercase query ("FI", CapsLock) into zero results. Exact casing still
+  // earns a small bonus below instead of acting as a filter.
+  var query = String(rawQuery).toLowerCase();
+  var text = String(rawText).toLowerCase();
   if (query.length > text.length) return -1;
 
   var previous = new Array(text.length);
@@ -41,10 +43,10 @@ function scoreToken(rawQuery, rawText) {
 
   var best = Math.max.apply(Math, previous);
   if (best === -Infinity) return -1;
-  var comparable = caseSensitive ? String(rawText) : String(rawText).toLowerCase();
-  if (comparable === query) best += 240;
-  else if (comparable.indexOf(query) === 0) best += 120;
-  else if (comparable.indexOf(query) >= 0) best += 55;
+  if (text === query) best += 240;
+  else if (text.indexOf(query) === 0) best += 120;
+  else if (text.indexOf(query) >= 0) best += 55;
+  if (String(rawText).indexOf(rawQuery) >= 0) best += 20;
   return best;
 }
 

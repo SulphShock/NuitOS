@@ -78,6 +78,9 @@ Rectangle {
                     // pinned state reads at a glance. Starred ones auto-reconnect.
                     Text {
                         visible: modelData.action !== "pair"
+                        // Above the row-wide click area: without this the star
+                        // can never be hit (later siblings stack on top).
+                        z: 2
                         text: SysState.isPinned(modelData.address) ? "" : ""
                         color: SysState.isPinned(modelData.address) ? Theme.yellow : Theme.dimText
                         font.pixelSize: 14

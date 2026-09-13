@@ -11,11 +11,12 @@ PanelWindow {
     screen: modelData
     anchors { top: true; left: true; right: true }
     implicitHeight: Theme.barHeight
-    color: Theme.panelBg                       // #282828 @ 95%
+    color: Theme.background                    // solid bar, full opacity
     WlrLayershell.namespace: "quickshell:gnome-bar"
 
     // ── bar-wide mouse: scroll anywhere on the bar to switch workspace ──
-    // (chips with their own wheel actions, e.g. volume, sit above and keep priority)
+    // (chips with their own wheel actions, e.g. battery brightness, sit
+    // above and keep priority)
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.NoButton
@@ -49,6 +50,12 @@ PanelWindow {
         const lvl = Math.min(100, Math.max(20, Math.round(p / 10) * 10))
         return "battery-level-" + lvl
             + (SysState.charging ? "-charging" : "") + "-symbolic"
+    }
+    readonly property string volIcon: {
+        if (SysState.muted || SysState.volume <= 0.001) return "audio-volume-muted-symbolic"
+        if (SysState.volume < 0.33) return "audio-volume-low-symbolic"
+        if (SysState.volume < 0.66) return "audio-volume-medium-symbolic"
+        return "audio-volume-high-symbolic"
     }
     property int workspaceRevision: 0
     // GNOME-style dynamic strip: always 1..5, extends to the highest live
@@ -110,6 +117,9 @@ PanelWindow {
         id: chip
         property string source: ""
         property color tint: Theme.foreground
+        // Only chips that opt in swallow the wheel; the rest let it pass
+        // through instead of eating a scroll that does nothing.
+        property bool handlesWheel: false
         signal clicked()
         signal wheelAdjusted(int direction)
         width: 18; height: 18; radius: 9
@@ -131,8 +141,12 @@ PanelWindow {
             cursorShape: Qt.PointingHandCursor
             onClicked: chip.clicked()
             onWheel: function(wheel) {
-                chip.wheelAdjusted(wheel.angleDelta.y > 0 ? 1 : -1)
-                wheel.accepted = true
+                if (chip.handlesWheel) {
+                    chip.wheelAdjusted(wheel.angleDelta.y > 0 ? 1 : -1)
+                    wheel.accepted = true
+                } else {
+                    wheel.accepted = false
+                }
             }
         }
         function pulse() { bar.pulseIcon(glyph) }
@@ -231,6 +245,7 @@ PanelWindow {
         Item {
             anchors.verticalCenter: parent.verticalCenter
             width: appTitle.text === "" ? 0 : 220
+            height: 20
             visible: appTitle.text !== ""
             clip: true
             Text {
@@ -337,6 +352,24 @@ PanelWindow {
                 MouseArea { id: bellMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: SysState.toggleNotifs() }
             }
 
+            // Volume — click toggles mute, wheel adjusts. Sits between
+            // notifications and wifi.
+            StatusIcon {
+                id: volBtn
+                handlesWheel: true
+                source: Theme.icon(bar.volIcon)
+                tint: (SysState.muted || SysState.volume <= 0.001)
+                    ? Theme.dimText
+                    : (statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground)
+                onClicked: SysState.toggleMute()
+                onWheelAdjusted: direction => SysState.setVolume(SysState.volume + direction * 0.05)
+                Connections {
+                    target: SysState
+                    function onVolumeChanged() { volBtn.pulse() }
+                    function onMutedChanged() { volBtn.pulse() }
+                }
+            }
+
             // Network — click opens the Wi-Fi panel.
             // Dim when offline entirely (no SSID and no wire) so the
             // radio-on-but-disconnected state reads differently from Off.
@@ -368,12 +401,14 @@ PanelWindow {
                 }
             }
 
-            // Battery — rightmost, click opens Quick Settings
+            // Battery — rightmost, click opens Quick Settings, wheel dims.
             StatusIcon {
                 id: battBtn
+                handlesWheel: true
                 source: Theme.icon(bar.battIcon)
                 tint: statusPill.color === Theme.accent ? Theme.accentText : Theme.foreground
                 onClicked: SysState.toggleQs()
+                onWheelAdjusted: direction => SysState.setBrightness(SysState.brightness + direction * 0.05)
                 Connections {
                     target: SysState
                     function onChargingChanged() { battBtn.pulse() }

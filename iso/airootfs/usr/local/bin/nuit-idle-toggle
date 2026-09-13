@@ -1,0 +1,35 @@
+#!/bin/bash
+# nuit-idle-toggle — toggle automatic idle handling (hypridle) on/off.
+# Usage: nuit-idle-toggle [on|off|toggle]      (default: toggle)
+#   Stops hypridle.service to inhibit dim/lock/screen-off/suspend (e.g. for
+#   presentations), starts it again to re-arm. Notifies on each switch.
+#   Bound to Fn+F7 (Super+F7 fallback). Distinct from lock (Fn+F8 / Super+L),
+#   which locks once but leaves the idle timers running.
+set -euo pipefail
+
+MODE="${1:-toggle}"
+SVC="hypridle.service"
+
+is_active() { systemctl --user is-active --quiet "$SVC"; }
+
+say() { notify-send -a Nuit "Idle $1" "$2" 2>/dev/null || true; }
+
+cmd_on() {
+    systemctl --user start "$SVC"
+    say "on" "Auto dim / lock / suspend re-armed"
+}
+
+cmd_off() {
+    # Drop any staged overlay state so we don't wake up dimmed.
+    nuit-idle-animation off >/dev/null 2>&1 || true
+    systemctl --user stop "$SVC"
+    say "off" "Display stays awake until re-enabled"
+}
+
+case "$MODE" in
+    on) cmd_on ;;
+    off) cmd_off ;;
+    toggle)
+        if is_active; then cmd_off; else cmd_on; fi ;;
+    *) echo "Usage: $(basename "$0") [on|off|toggle]" >&2; exit 1 ;;
+esac

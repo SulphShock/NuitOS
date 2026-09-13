@@ -98,9 +98,11 @@ Rectangle {
         }
     }
 
-    // slow frame driver (~15fps) + breath clock; paused when hidden
+    // slow frame driver (~15fps) + breath clock; paused when hidden.
+    // (Root visible stays true while the parent PanelWindow hides, so gate
+    // on the idle flag itself — otherwise this loop burns CPU invisibly.)
     Timer {
-        interval: 66; running: root.visible; repeat: true
+        interval: 66; running: root.visible && SysState.idleDim; repeat: true
         onTriggered: { field.tSec += 0.066; field.requestPaint(); }
     }
 
@@ -141,11 +143,13 @@ Rectangle {
         }
     }
 
-    // fullscreen wake: hover tracks the cursor for the field, any click wakes
+    // fullscreen wake: hover tracks the cursor for the field; any click
+    // or real pointer movement wakes (hypridle's on-resume already wakes on
+    // input — this is the backup path for the same gesture).
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
-        onPositionChanged: mouse => { field.mx = mouse.x; field.my = mouse.y; }
+        onPositionChanged: mouse => { field.mx = mouse.x; field.my = mouse.y; SysState.setIdle(false) }
         onClicked: SysState.setIdle(false)
     }
 }

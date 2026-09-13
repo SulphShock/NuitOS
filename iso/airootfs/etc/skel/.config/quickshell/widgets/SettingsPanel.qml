@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
 import QtQuick.Layouts
+import Quickshell
 import Quickshell.Io
 import ".."
 
@@ -17,6 +18,31 @@ Rectangle {
     property string currentWallpaper: ""
     property var themes: []
     property var selectedTheme: null
+    // Persisted theme name (~/.config/nuit/theme): applied on load so the
+    // choice survives restarts instead of living only in memory.
+    property string savedThemeName: ""
+    property bool themeRestored: false
+    function maybeRestoreTheme() {
+        if (themeRestored || savedThemeName === "" || themes.length === 0) return
+        const hit = themes.find(t => t.name === savedThemeName)
+        if (!hit) { themeRestored = true; return }
+        selectedTheme = hit
+        Theme.applyTheme(hit)
+        themeRestored = true
+    }
+    function saveThemeName(name) {
+        themeSaveWrite.path = (Quickshell.env("HOME") || "/home/user") + "/.config/nuit/theme"
+        themeSaveWrite.setText(name)
+    }
+    FileView {
+        id: themeSavedFile
+        path: (Quickshell.env("HOME") || "/home/user") + "/.config/nuit/theme"
+        onLoaded: { panel.savedThemeName = text().trim(); panel.maybeRestoreTheme() }
+    }
+    FileView {
+        id: themeSaveWrite
+        atomicWrites: true
+    }
 
     // Run a Nuit background tool, preferring PATH (ISO: /usr/local/bin)
     // and falling back to the local ~/.local/bin install (host machines).
@@ -44,6 +70,9 @@ Rectangle {
     Process { id: wpApply
         stdout: StdioCollector { onStreamFinished: { panel.currentWallpaper = text.trim(); panel.wallpaperPath = text.trim(); wpList.running = true } }
     }
+    // Folder opener gets its own Process: sharing wpApply blanked the
+    // wallpaper label (its /dev/null output overwrote currentWallpaper).
+    Process { id: wpFolder }
     function setWallpaper(path) {
         const safe = String(path).replace(/"/g, "")
         wpApply.command = bgScript("nuit-theme-bg-set", safe)
@@ -54,8 +83,8 @@ Rectangle {
         wpApply.running = true
     }
     function openWallpaperFolder() {
-        wpApply.command = ["sh", "-c", "( " + bgScript("nuit-theme-bg-folder")[2] + " ) >/dev/null 2>&1 &"]
-        wpApply.running = true
+        wpFolder.command = ["sh", "-c", "( " + bgScript("nuit-theme-bg-folder")[2] + " ) >/dev/null 2>&1 &"]
+        wpFolder.running = true
     }
 
     component ShellButton: Button {
@@ -96,6 +125,7 @@ Rectangle {
                     }
                 }
                 panel.themes = loaded
+                panel.maybeRestoreTheme()
             }
         }
     }
@@ -252,6 +282,7 @@ Rectangle {
                                     onClicked: {
                                         panel.selectedTheme = modelData
                                         Theme.applyTheme(modelData)
+                                        panel.saveThemeName(modelData.name)
                                     }
                                 }
                             }
@@ -275,7 +306,7 @@ Rectangle {
                 color: Theme.inactiveBg
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 16; spacing: 12
-                    Text { text: "Wallpaper  ·  Super+Ctrl+Space for next"; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 13; bold: true } }
+                    Text { text: "Wallpaper  ·  Super+Shift+Space for next"; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 13; bold: true } }
                     RowLayout {
                         Layout.fillWidth: true
                         ShellButton { text: "Next background"; onClicked: panel.nextWallpaper() }

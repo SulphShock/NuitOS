@@ -62,7 +62,7 @@ Rectangle {
         path: board.fxFile
         onLoaded: {
             try {
-                const j = JSON.parse(text)
+                const j = JSON.parse(text())
                 if (j && j.rates) board.fxRates = { base: j.base || "USD", rates: j.rates, fetchedAt: j.fetchedAt || 0 }
             } catch (e) {}
         }
@@ -97,7 +97,7 @@ Rectangle {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    const j = JSON.parse(text)
+                const j = JSON.parse(text)
                     if (j && j.rates) {
                         board.fxRates = { base: "USD", rates: j.rates, fetchedAt: Date.now() }
                         fxWrite.path = board.fxFile
@@ -113,7 +113,7 @@ Rectangle {
         stdinEnabled: true
         property string pending: ""
         command: ["wl-copy"]
-        onStarted: write(pending + "\n")
+        onStarted: write(pending)   // no trailing newline: COPY must paste clean
         onExited: code => { if (code === 0) board.copied = true }
     }
     function copyResult(t) {
@@ -253,9 +253,9 @@ Rectangle {
                         RowLayout {
                             anchors { fill: parent; leftMargin: 6; rightMargin: 6 }
                             Text { Layout.fillWidth: true; text: modelData.label; color: Theme.dimText; elide: Text.ElideRight; font { family: Theme.fontFamily; pixelSize: 10 } }
-                            Text { text: modelData.primary.text; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 11; bold: true } }
+                            Text { text: (modelData.primary && modelData.primary.text) || modelData.label; color: Theme.text; font { family: Theme.fontFamily; pixelSize: 11; bold: true } }
                         }
-                        MouseArea { id: optMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: board.copyResult(modelData.primary.copyValue) }
+                        MouseArea { id: optMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: board.copyResult(modelData.primary ? modelData.primary.copyValue : modelData.label) }
                     }
                 }
                 Rectangle {

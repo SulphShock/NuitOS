@@ -13,6 +13,7 @@ Rectangle {
     color: Theme.menuBg
     focus: visible
     MouseArea { anchors.fill: parent }   // swallow clicks (scrim must not close us)
+    Keys.onEscapePressed: SysState.notifOpen = false
 
     onVisibleChanged: {
         if (visible) {
@@ -87,6 +88,9 @@ Rectangle {
                 implicitHeight: Math.max(44, nCol.implicitHeight + 12)
                 radius: Theme.radiusSm
                 color: nMa.containsMouse ? Theme.hover : Theme.inactiveBg
+                // Hover-only layer (NoButton): sits below the × / action
+                // buttons so hover highlights without stealing their clicks.
+                MouseArea { id: nMa; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
                 RowLayout {
                     anchors { fill: parent; leftMargin: 8; rightMargin: 8; topMargin: 6; bottomMargin: 6 }
                     spacing: 8
@@ -140,11 +144,16 @@ Rectangle {
                             }
                         }
                     }
-                    Text {
+                    Item {
                         Layout.alignment: Qt.AlignTop
-                        text: "×"
-                        color: nXMa.containsMouse ? Theme.error : Theme.dimText
-                        font.pixelSize: 14
+                        Layout.preferredWidth: 24
+                        Layout.preferredHeight: 24
+                        Text {
+                            anchors.centerIn: parent
+                            text: "×"
+                            color: nXMa.containsMouse ? Theme.error : Theme.dimText
+                            font.pixelSize: 14
+                        }
                         MouseArea { id: nXMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: SysState.dismissNotification(modelData) }
                     }
                 }

@@ -1,0 +1,37 @@
+#!/bin/bash
+# nuit-term-run — run a command in the first available terminal.
+# Usage: nuit-term-run <command> [args...]
+#   Prefers ghostty, falls back to kitty, then alacritty (all support -e
+#   except kitty, which takes the command bare). Honors $TERMINAL when set.
+#   Used by the Quickshell welcome panel + OS updater so those buttons work
+#   on machines without ghostty installed.
+set -euo pipefail
+
+pick_term() {
+    if [ -n "${TERMINAL:-}" ] && command -v "$TERMINAL" >/dev/null 2>&1; then
+        printf '%s' "$TERMINAL"
+        return 0
+    fi
+    local t
+    for t in ghostty kitty alacritty foot xterm; do
+        if command -v "$t" >/dev/null 2>&1; then printf '%s' "$t"; return 0; fi
+    done
+    return 1
+}
+
+if [ "$#" -eq 0 ]; then
+    echo "Usage: $(basename "$0") <command> [args...]" >&2
+    exit 1
+fi
+
+TERM_BIN="$(pick_term || true)"
+if [ -z "$TERM_BIN" ]; then
+    notify-send -a Nuit "No terminal" "Install ghostty or kitty to run: $*" 2>/dev/null || true
+    echo "nuit-term-run: no terminal found (tried ghostty kitty alacritty foot xterm)" >&2
+    exit 1
+fi
+
+case "$(basename "$TERM_BIN")" in
+    kitty|foot) exec "$TERM_BIN" "$@" >/dev/null 2>&1 & ;;
+    *)          exec "$TERM_BIN" -e "$@" >/dev/null 2>&1 & ;;
+esac

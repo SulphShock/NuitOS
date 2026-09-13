@@ -1,0 +1,32 @@
+name: release
+on:
+  push:
+    tags:
+      - v*
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-20260906.0.587075
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install archiso
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Syu --noconfirm archiso git base-devel diffutils
+      - name: Build ISO
+        run: |
+          export NUIT_WORK=/tmp/nuitos-build
+          ./scripts/nuit-release.sh
+          ls -lh out/*.iso
+          (cd out && for f in *.iso; do sha256sum "$f" | tee "$f.sha256"; done)
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/*.iso
+            out/*.iso.sha256

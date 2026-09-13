@@ -13,6 +13,8 @@ jobs:
           ck configs/bin/nuit-capture-menu iso/airootfs/usr/local/bin/nuit-capture-menu
           ck configs/bin/nuit-screenrecord iso/airootfs/usr/local/bin/nuit-screenrecord
           ck configs/bin/nuit-screenshot iso/airootfs/usr/local/bin/nuit-screenshot
+          ck configs/bin/nuit-wallpaper-flare iso/airootfs/usr/local/bin/nuit-wallpaper-flare
+          ck scripts/nuit-random-wallpaper.sh iso/airootfs/usr/local/bin/nuit-random-wallpaper
           ck configs/bin/nuit-idle-animation iso/airootfs/usr/local/bin/nuit-idle-animation
           for t in nuit-theme-bg-set nuit-theme-bg-next nuit-theme-bg-folder nuit-theme-bg-current; do
             ck scripts/$t iso/airootfs/usr/local/bin/$t
@@ -29,5 +31,9 @@ jobs:
           for d in quickshell ghostty nvim fastfetch Branding gammastep; do
             diff -rq configs/$d iso/airootfs/etc/skel/.config/$d || { echo "drift: configs/$d"; fail=1; }
           done
+          [ -f iso/airootfs/etc/machine-id ] || { echo "missing iso/airootfs/etc/machine-id"; fail=1; }
           [ ! -s iso/airootfs/etc/machine-id ] || { echo "machine-id must be empty"; fail=1; }
+          [ -d configs/wallpapers/default ] || { echo "missing configs/wallpapers/default"; fail=1; }
+          [ -n "$(ls -A configs/wallpapers/default 2>/dev/null)" ] || { echo "no wallpapers in configs/wallpapers/default"; fail=1; }
+          grep -qE '^[^#[:blank:]]+[[:blank:]]+#' iso/packages.x86_64 iso/airootfs/usr/local/share/nuit/pkgs-disk.txt && { echo "trailing comment in package list (breaks pacstrap)"; fail=1; }
           exit $fail

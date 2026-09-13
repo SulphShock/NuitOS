@@ -2,30 +2,62 @@ NuitOS — keys you actually need
 ================================
 
 Apps & windows
-  Super+Space               App grid (find the Nuit OS Installer here)
   Super+Return              Terminal
-  Super+C                   Close window
+  Super+B                   Browser (default)
+  Super+Shift+B             Browser private window
+  Super+F                   Files (default)
+  Super+Shift+F             Fullscreen
+  Super+Q                   Close window
   Super+V                   Toggle floating
   Super+P                   Pseudo-tile
-  Super+J                   Toggle split
+  Super+G                   Toggle split (was Super+J)
+  Super+H/J/K               Focus left/down/up (arrows work too; Super+Right for right — Super+L locks)
+  Super+Shift+H/J/K/L       Swap window left/down/up/right
+  Super+Ctrl+H/J/K/L        Resize window (arrows work too)
+  Alt+Tab / Alt+Shift+Tab   Next / previous window
   Super+1..0                Switch workspace
-  Super+Shift+1..0          Move window to workspace
+  Super+Shift+1..0          Move window to workspace + follow
+  Super+Ctrl+1..0           Send window to workspace (stay put)
   Super+mouse drag          Move / resize window
   Super+mouse wheel         Switch workspace
 
 Panels & tools
-  Super+S                   Quick settings
+  Super+Space               App grid (find the Nuit OS Installer here)
+  Super+S                   Quick settings (power dialog inside)
+  Super+Shift+Q             Quick settings / session (power dialog inside)
   Super+T                   Calendar
-  Super+A                   Activities (app grid)
   Super+Shift+S             Settings panel
-  Super+Shift+Space         Random wallpaper
-  Super+Shift+F             Files   ·  Super+Shift+B   Browser
+  Super+N                   Notifications
+  Super+R                   Reminders
+  Super+W                   Wi-Fi panel
+  Super+Ctrl+B              Bluetooth panel
+  Super+C                   Screenshot board
+  Super+M                   YouTube Music
+  Super+Shift+N             Night light
+  Super+Shift+Space         Next wallpaper (1 of 5 preloaded, random at boot)
+  Super+Ctrl+Space          Pick wallpaper from the 5
   Super+Ctrl+C              Capture menu (screenshot / record / OCR / QR / color)
   PrtSc / Shift+PrtSc       Screenshot region → clipboard / file
   Super+F1                  This list
+  Super+F5                  Reload Hyprland config
+
+Sound & screen (Fn keys)
+  Fn+F1                     Mute speakers
+  Fn+F2 / Fn+F3             Volume down / up
+  Fn+F4                     Mute microphone
+  Media keys                Play/pause, next, previous track
+  Fn+F7                     Toggle auto idle (dim/lock/suspend) on/off
+  Fn+F8                     Lock screen (also Super+L)
+  Fn+F11 / Fn+F12           Brightness down / up
+
+Session
+  Super+L                   Lock screen
+  Super+Shift+Esc           Log out of Hyprland (no more instant reboot)
+  Power off / reboot / suspend: Super+S, open the power dialog.
 
 Install & help
   To install NuitOS: open the app grid, launch "Nuit OS Installer".
   Stuck? https://github.com/SulphShock/NuitOS/issues
 
 Super = the Windows key.
+Fn combos arrive as media keys; Super+F-key variants exist where noted.
