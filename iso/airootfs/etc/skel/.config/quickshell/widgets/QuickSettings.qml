@@ -52,6 +52,7 @@ Rectangle {
 
             QSToggle {
                 Layout.fillWidth: true
+                visible: SysState.hasBacklight
                 filled: true
                 icon: "display-brightness-symbolic"
                 title: "Brightness"

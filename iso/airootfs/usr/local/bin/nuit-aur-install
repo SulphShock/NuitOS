@@ -22,7 +22,7 @@ AUR_PACKAGES=(
 if ! command -v yay >/dev/null 2>&1 && ! command -v paru >/dev/null 2>&1; then
     note "No AUR helper found — bootstrapping yay..."
     command -v git >/dev/null 2>&1 || fail "git not found — install git first"
-    command -v base-devel >/dev/null 2>&1 || {
+    pacman -Qg base-devel >/dev/null 2>&1 || {
         note "Installing base-devel..."
         sudo pacman -S --noconfirm base-devel
     }

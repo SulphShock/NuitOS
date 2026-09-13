@@ -3,6 +3,7 @@ base
 linux
 linux-firmware
 syslinux
+mkinitcpio
 mkinitcpio-archiso
 nano
 vim
@@ -24,7 +25,7 @@ man-pages
 power-profiles-daemon
 reflector
 
-# Disk installer tools (calamares installed via AUR post-install)
+# Disk installer tools
 gptfdisk
 dosfstools
 btrfs-progs
@@ -93,13 +94,11 @@ pavucontrol
 bluez
 bluez-utils
 
+# Networking (pin iptables to avoid provider prompt)
+iptables
+
 # Development (base-devel group already provides gcc/make/pkgconf)
 base-devel
-
-# Fonts (jetbrains-nerd only per README; ttf-jetbrains-mono-nerd above covers UI+terminal)
-noto-fonts
-noto-fonts-emoji
-ttf-liberation
 
 # Apps
 file-roller

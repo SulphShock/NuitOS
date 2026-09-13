@@ -10,12 +10,16 @@ jobs:
           set -e
           fail=0
           ck() { cmp -s "$1" "$2" || { echo "drift: $1 != $2"; fail=1; }; }
+          ck configs/bin/nuit-browser-private iso/airootfs/usr/local/bin/nuit-browser-private
           ck configs/bin/nuit-capture-menu iso/airootfs/usr/local/bin/nuit-capture-menu
           ck configs/bin/nuit-screenrecord iso/airootfs/usr/local/bin/nuit-screenrecord
           ck configs/bin/nuit-screenshot iso/airootfs/usr/local/bin/nuit-screenshot
           ck configs/bin/nuit-wallpaper-flare iso/airootfs/usr/local/bin/nuit-wallpaper-flare
           ck scripts/nuit-random-wallpaper.sh iso/airootfs/usr/local/bin/nuit-random-wallpaper
           ck configs/bin/nuit-idle-animation iso/airootfs/usr/local/bin/nuit-idle-animation
+          ck configs/bin/nuit-idle-toggle iso/airootfs/usr/local/bin/nuit-idle-toggle
+          ck configs/bin/nuit-term-run iso/airootfs/usr/local/bin/nuit-term-run
+          ck scripts/nuit-theme-bg-pick iso/airootfs/usr/local/bin/nuit-theme-bg-pick
           for t in nuit-theme-bg-set nuit-theme-bg-next nuit-theme-bg-folder nuit-theme-bg-current; do
             ck scripts/$t iso/airootfs/usr/local/bin/$t
           done
@@ -32,6 +36,7 @@ jobs:
             diff -rq configs/$d iso/airootfs/etc/skel/.config/$d || { echo "drift: configs/$d"; fail=1; }
           done
           ck scripts/nuit-aur-install iso/airootfs/usr/local/bin/nuit-aur-install
+          ck scripts/nuit-installer iso/airootfs/usr/local/bin/nuit-installer
           [ -f iso/airootfs/etc/machine-id ] || { echo "missing iso/airootfs/etc/machine-id"; fail=1; }
           [ ! -s iso/airootfs/etc/machine-id ] || { echo "machine-id must be empty"; fail=1; }
           [ -d configs/wallpapers/default ] || { echo "missing configs/wallpapers/default"; fail=1; }

@@ -63,5 +63,4 @@ deploy:
     @echo "Deployed. Restart Hyprland / qs to pick up."
 
 sync-check:
-    @{{REPO}}/scripts/nuit-release.sh --help >/dev/null 2>&1 || true
-    @echo "Run drift guard via nuit-release.sh build (fails on drift)."
+    @just --justfile {{REPO}}/justfile diff 2>&1 || true

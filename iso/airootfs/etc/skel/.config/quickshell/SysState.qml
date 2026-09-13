@@ -178,7 +178,7 @@ Singleton {
                 root.wired = false; root.wifiSsid = ""
                 let haveWifi = false
                 for (const l of text.trim().split("\n")) {
-                    const p = l.split(":")
+                    const p = splitTerse(l)
                     if (p.length >= 3) {
                         if (p[0] === "wifi" && p[1] === "connected") {
                             root.wifiSsid = p.slice(2).join(":")
@@ -211,7 +211,7 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 for (const l of text.trim().split("\n")) {
-                    const p = l.split(":")
+                    const p = splitTerse(l)
                     if (p.length >= 2 && (p[0] === "*" || p[0] === "yes")) {
                         root.wifiStrength = parseInt(p[1]) || 0
                         break
@@ -732,7 +732,7 @@ Singleton {
         : pendingUpdates === 0 ? "Up to date" : pendingUpdates + " waiting"
     Process {
         id: updCheck
-        command: ["sh", "-c", "command -v yay >/dev/null 2>&1 || { echo -1; exit 0; }; yay -Qu 2>/dev/null | wc -l"]
+        command: ["sh", "-c", "H=$(command -v yay 2>/dev/null || command -v paru 2>/dev/null); [ -n \"$H\" ] || { echo -1; exit 0; }; $H -Qu 2>/dev/null | wc -l"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const n = parseInt(text.trim())

@@ -85,6 +85,7 @@ if [ "$MODE" = "full" ]; then
     check_same "$REPO/configs/hypridle/hypridle.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hypridle.conf"
     check_same "$REPO/configs/hyprlock/hyprlock.conf" "$REPO/iso/airootfs/etc/skel/.config/hypr/hyprlock.conf"
     check_same "$REPO/configs/bin/nuit-idle-animation" "$REPO/iso/airootfs/usr/local/bin/nuit-idle-animation"
+    check_same "$REPO/scripts/nuit-installer" "$REPO/iso/airootfs/usr/local/bin/nuit-installer"
     for d in quickshell ghostty nvim fastfetch Branding; do
         diff -rq "$REPO/configs/$d" "$REPO/iso/airootfs/etc/skel/.config/$d" >/dev/null 2>&1 \
             || { warn "drift: configs/$d != skel .config/$d"; drift=1; }
