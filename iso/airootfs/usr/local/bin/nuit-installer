@@ -13,17 +13,12 @@
 set -euo pipefail
 
 # ── Gruvbox Dark Hard palette ────────────────────────────────────────────────
-readonly BG="#1d2021"
-readonly BG2="#282828"
 readonly BG3="#3c3836"
 readonly FG="#ebdbb2"
-readonly FG2="#d5c4a1"
 readonly DIM="#7c6f64"
 readonly ACCENT="#d79921"
 readonly GREEN="#b8bb26"
 readonly RED="#fb4934"
-readonly BLUE="#83a598"
-readonly PURPLE="#d3869b"
 
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
@@ -75,7 +70,10 @@ done
 
 # Reliable device naming for whole-disks like nvme0n1p1 / mmcblk0p1.
 part_suffix() {
-  [[ "$1" =~ ^(nvme|mmcblk|loop) ]] && echo p || true
+  if [[ "$1" =~ ^(nvme|mmcblk|loop) ]]; then
+    echo p
+  fi
+  return 0
 }
 
 clear
@@ -170,13 +168,15 @@ echo
 
 LUKS_OPT="$(pick --header "  Disk encryption (LUKS2 on root)" "none" "full-disk encryption (LUKS2)")"
 LUKS_PASS=""
-[[ "$LUKS_OPT" == *"LUKS2"* ]] && {
+if [[ "$LUKS_OPT" == *"LUKS2"* ]]; then
   LUKS_PASS="$(gum input --password --prompt "${ACCENT}▸ " --placeholder "encryption passphrase (min 8 chars)")"
   [[ ${#LUKS_PASS} -lt 8 ]] && fail "passphrase too short"
   RECHECK="$(gum input --password --prompt "${ACCENT}▸ " --placeholder "repeat passphrase")"
   [[ "$LUKS_PASS" != "$RECHECK" ]] && fail "passphrases do not match"
   ok "LUKS2 encryption enabled"
-} || ok "No encryption"
+else
+  ok "No encryption"
+fi
 echo
 
 # ── 5. Locale / Keymap / Timezone ────────────────────────────────────────────
@@ -358,6 +358,21 @@ ROOT_LINE="root=UUID=${ROOT_UUID} rw quiet"
 cat > /mnt/root/nuit-stage2.sh <<'STAGE2'
 #!/bin/bash
 set -euo pipefail
+STAGE2
+# Stage-1 answers baked in: the quoted heredoc above cannot expand them,
+# and stage 2 runs under `set -u` (anything unset would abort the install).
+{
+  printf 'USERNAME=%q\n' "$USERNAME"
+  printf 'USER_PASS=%q\n' "$USER_PASS"
+  printf 'HOSTNAME=%q\n' "$HOSTNAME"
+  printf 'LOCALE=%q\n' "$LOCALE"
+  printf 'LANG_VAL=%q\n' "$LANG_VAL"
+  printf 'KEYMAP=%q\n' "$KEYMAP"
+  printf 'TZ=%q\n' "$TZ"
+  printf 'LUKS_HOOK=%q\n' "$LUKS_HOOK"
+  printf 'ROOT_LINE=%q\n' "$ROOT_LINE"
+} >> /mnt/root/nuit-stage2.sh
+cat >> /mnt/root/nuit-stage2.sh <<'STAGE2B'
 
 # Skel, helper scripts and artwork from the live image
 cp -a /etc/skel/. /etc/skel/
@@ -443,7 +458,7 @@ initrd  /amd-ucode.img
 initrd  /initramfs-linux.img
 options ${ROOT_LINE}
 ENT
-STAGE2
+STAGE2B
 
 chmod +x /mnt/root/nuit-stage2.sh
 gum spin --spinner line --title "  Configuring system (user, boot, locale)…" -- \
@@ -455,8 +470,12 @@ ok "System configured"
 info "Unmounting and cleaning up"
 sync
 umount -R /mnt || true
-[[ -n "$SWAP_PART" ]] && swapoff -a || true
-[[ "$LUKS_OPT" == *"LUKS2"* ]] && cryptsetup close cryptroot || true
+if [[ -n "$SWAP_PART" ]]; then
+  swapoff -a || true
+fi
+if [[ "$LUKS_OPT" == *"LUKS2"* ]]; then
+  cryptsetup close cryptroot || true
+fi
 ok "Unmounted"
 
 # ── Done ─────────────────────────────────────────────────────────────────────
@@ -480,9 +499,13 @@ card "${GREEN}NuitOS installed.${FG}
 ${DIM}Remove the installation media, then reboot."
 
 echo
-gum confirm \
+if gum confirm \
   --affirmative "Reboot" \
   --negative "Stay in live session" \
   --selected.foreground "$GREEN" \
   --unselected.foreground "$DIM" \
-  "Reboot now?" && systemctl reboot || info "Reboot anytime with: systemctl reboot"
+  "Reboot now?"; then
+  systemctl reboot
+else
+  info "Reboot anytime with: systemctl reboot"
+fi
