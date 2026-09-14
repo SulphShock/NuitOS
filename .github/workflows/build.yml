@@ -1,8 +1,18 @@
 name: build
 on: [push, pull_request]
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint scripts
+        run: |
+          shellcheck scripts/*.sh scripts/nuit-aur-install scripts/nuit-installer configs/bin/*
   build:
     runs-on: ubuntu-latest
+    needs: lint
     container:
       image: archlinux:base-20260906.0.587075
       options: --privileged
@@ -16,7 +26,7 @@ jobs:
       - name: Build ISO
         run: |
           export NUIT_WORK=/tmp/nuitos-build
-          ./scripts/nuit-release.sh
+          sudo ./scripts/nuit-release.sh
           ls -lh out/*.iso
           (cd out && for f in *.iso; do sha256sum "$f" | tee "$f.sha256"; done)
       - name: Boot smoke test (QEMU)

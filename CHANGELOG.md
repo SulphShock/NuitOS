@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Added `AGENTS.md` with repo ground truth and agent constraints.
+- Added `scripts/install.sh` for fresh-Arch installs (idempotent, `--dry-run`).
+- Added `SECURITY.md` with vulnerability disclosure contact.
+- Fixed CI: added shellcheck lint job, sudo in build/release workflows.
+- Fixed dead waybar layerrules in Hyprland config (now quickshell).
+- Fixed `SC1102` shellcheck error in `nuit-wallpaper-flare`.
+- Fixed `iso/profiledef.sh`: dynamic version from `git describe`, trailing space removed.
+
 ## v1.0.0 (2026-10-03 target)
 
 Production-ready first release.

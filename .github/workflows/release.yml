@@ -21,7 +21,7 @@ jobs:
       - name: Build ISO
         run: |
           export NUIT_WORK=/tmp/nuitos-build
-          ./scripts/nuit-release.sh
+          sudo ./scripts/nuit-release.sh
           ls -lh out/*.iso
           (cd out && for f in *.iso; do sha256sum "$f" | tee "$f.sha256"; done)
       - name: Create GitHub Release

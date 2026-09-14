@@ -64,3 +64,6 @@ deploy:
 
 sync-check:
     @just --justfile {{REPO}}/justfile diff 2>&1 || true
+
+install:
+    @bash {{REPO}}/scripts/install.sh

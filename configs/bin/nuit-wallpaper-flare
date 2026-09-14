@@ -119,7 +119,7 @@ elif [ "$IS_FLARE" -eq 1 ]; then
   if ! curl -fsSL --max-time "$TIMEOUT" -A "$UA" --referer "$REFERER" -o "$PAGE_TMP" "$URL"; then
     fail "page blocked or needs JS — open it in a browser and copy the direct image link instead"
   fi
-  IMG_URL="$((grep -Eo 'https://c4\.wallpaperflare\.com/wallpaper/[^"'"'"'[:space:]>]*\.(jpg|jpeg|png|webp)' "$PAGE_TMP" 2>/dev/null || true) | sort -u | awk '{ u=$0; if (match(u, /[0-9]{3,5}x[0-9]{3,5}/)) { m=substr(u, RSTART, RLENGTH); n=split(m, d, "x"); area=d[1]*d[2]; } else { area=length(u); } print area "\t" u; }' | sort -rn | head -n1 | cut -f2-)"
+  IMG_URL="$(grep -Eo 'https://c4\.wallpaperflare\.com/wallpaper/[^"'"'"'[:space:]>]*\.(jpg|jpeg|png|webp)' "$PAGE_TMP" 2>/dev/null || true | sort -u | awk '{ u=$0; if (match(u, /[0-9]{3,5}x[0-9]{3,5}/)) { m=substr(u, RSTART, RLENGTH); n=split(m, d, "x"); area=d[1]*d[2]; } else { area=length(u); } print area "\t" u; }' | sort -rn | head -n1 | cut -f2-)"
   [ -n "$IMG_URL" ] || fail "no image found on that page — open it in a browser and copy the direct image link instead"
 else
   fail "bad URL (need a wallpaperflare.com page or a direct .jpg/.jpeg/.png/.webp image URL): $URL"

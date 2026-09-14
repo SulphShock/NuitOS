@@ -1,0 +1,181 @@
+#!/bin/bash
+# nuit — minimal NuitOS system CLI
+# Subcommands: up [--full], rollback, doctor
+#
+# Style: matches scripts/nuit-release.sh (set -euo pipefail, note/warn/die).
+
+set -euo pipefail
+
+RED=$'\e[31m'; YEL=$'\e[33m'; GRN=$'\e[32m'; DIM=$'\e[2m'; RST=$'\e[0m'
+note() { printf '%s[nuit]%s %s\n' "${DIM}" "${RST}" "$*"; }
+warn() { printf '%s[warn]%s %s\n' "${YEL}" "${RST}" "$*"; }
+die()  { printf '%s[error]%s %s\n' "${RED}" "${RST}" "$*" >&2; exit 1; }
+
+REPO_URL="https://github.com/SulphShock/NuitOS"
+REPO_DIR="${NUIT_REPO:-$HOME/.local/share/nuit/repo}"
+
+usage() {
+    cat <<EOF
+nuit — NuitOS system CLI
+
+Usage:
+  nuit up [--full]      Update system (pacman -Syu); --full also updates AUR helper
+  nuit rollback         List and restore pre-update snapshots
+  nuit doctor           Check drift between ~/.config and repo configs/
+
+EOF
+}
+
+# ── up ───────────────────────────────────────────────────────────────────────
+cmd_up() {
+    local full=0
+    [[ "${1:-}" == "--full" ]] && full=1
+
+    command -v pacman >/dev/null 2>&1 || die "pacman not found — not an Arch system"
+
+    # Snapshot before update
+    local snap_tool=""
+    if command -v snapper >/dev/null 2>&1; then
+        snap_tool="snapper"
+    elif command -v timeshift >/dev/null 2>&1; then
+        snap_tool="timeshift"
+    fi
+
+    if [[ -n "$snap_tool" ]]; then
+        note "creating pre-update snapshot via $snap_tool"
+        if [[ "$snap_tool" == "snapper" ]]; then
+            sudo snapper create --description "pre-nuit-up" --print-number 2>/dev/null || warn "snapper snapshot failed"
+        else
+            sudo timeshift --create --comments "pre-nuit-up" 2>/dev/null || warn "timeshift snapshot failed"
+        fi
+    else
+        warn "no snapshot tool found (install snapper or timeshift for rollback support)"
+    fi
+
+    # Update AUR helper if --full
+    if [[ "$full" -eq 1 ]]; then
+        local aur_helper=""
+        if command -v yay >/dev/null 2>&1; then
+            aur_helper="yay"
+        elif command -v paru >/dev/null 2>&1; then
+            aur_helper="paru"
+        fi
+        if [[ -n "$aur_helper" ]]; then
+            note "updating $aur_helper"
+            sudo "$aur_helper" -Syu --noconfirm 2>/dev/null || warn "$aur_helper update failed"
+        fi
+    fi
+
+    # System update
+    note "running pacman -Syu"
+    sudo pacman -Syu
+}
+
+# ── rollback ─────────────────────────────────────────────────────────────────
+cmd_rollback() {
+    if command -v snapper >/dev/null 2>&1; then
+        note "listing snapper snapshots"
+        sudo snapper list
+        echo
+        read -rp "Restore latest pre-update snapshot? [y/N] " confirm
+        if [[ "$confirm" == [yY] ]]; then
+            local latest
+            latest="$(sudo snapper list --columns number,description --no-headers --sort number -r 2>/dev/null | grep "pre-nuit-up" | tail -1 | awk '{print $1}')"
+            if [[ -n "$latest" ]]; then
+                note "restoring snapshot #$latest"
+                sudo snapper rollback "$latest"
+            else
+                warn "no pre-nuit-up snapshot found"
+            fi
+        fi
+    elif command -v timeshift >/dev/null 2>&1; then
+        note "listing timeshift snapshots"
+        sudo timeshift --list
+        echo
+        read -rp "Restore latest snapshot? [y/N] " confirm
+        if [[ "$confirm" == [yY] ]]; then
+            local latest
+            latest="$(sudo timeshift --list --raw | tail -1 | awk -F'|' '{print $1}')"
+            if [[ -n "$latest" ]]; then
+                note "restoring snapshot $latest"
+                sudo timeshift --restore --snapshot "$latest" --yes
+            fi
+        fi
+    else
+        die "no snapshot tool found — install snapper or timeshift for rollback support"
+    fi
+}
+
+# ── doctor ───────────────────────────────────────────────────────────────────
+cmd_doctor() {
+    # Ensure repo is cloned
+    if [[ ! -d "$REPO_DIR/configs" ]]; then
+        note "cloning NuitOS repo to $REPO_DIR"
+        mkdir -p "$(dirname "$REPO_DIR")"
+        git clone --depth 1 "$REPO_URL" "$REPO_DIR" 2>/dev/null || die "failed to clone repo"
+    fi
+
+    local drift=0
+    local checks=0
+
+    check_file() {
+        local src="$1" dst="$2"
+        checks=$((checks + 1))
+        if [[ ! -f "$dst" ]]; then
+            warn "missing: $dst"
+            drift=$((drift + 1))
+        elif ! cmp -s "$src" "$dst" 2>/dev/null; then
+            warn "drift: $src != $dst"
+            drift=$((drift + 1))
+        fi
+    }
+
+    check_dir() {
+        local src="$1" dst="$2"
+        checks=$((checks + 1))
+        if [[ ! -d "$dst" ]]; then
+            warn "missing dir: $dst"
+            drift=$((drift + 1))
+        elif ! diff -rq "$src" "$dst" >/dev/null 2>&1; then
+            warn "drift: $src != $dst"
+            drift=$((drift + 1))
+        fi
+    }
+
+    # Hyprland split config
+    for f in hyprland.conf env.conf appearance.conf rules.conf autostart.conf bindings.conf bindings.lua hyprland.lua; do
+        check_file "$REPO_DIR/configs/hyprland/$f" "$HOME/.config/hypr/$f"
+    done
+
+    # Shader
+    check_file "$REPO_DIR/configs/hyprland/shaders/nuit-night-light.glsl" "$HOME/.config/hypr/shaders/nuit-night-light.glsl"
+
+    # Config dirs
+    for d in quickshell ghostty nvim fastfetch Branding; do
+        check_dir "$REPO_DIR/configs/$d" "$HOME/.config/$d"
+    done
+
+    # Hypridle, hyprlock, hyprpaper
+    check_file "$REPO_DIR/configs/hypridle/hypridle.conf" "$HOME/.config/hypridle/hypridle.conf"
+    check_file "$REPO_DIR/configs/hyprlock/hyprlock.conf" "$HOME/.config/hyprlock/hyprlock.conf"
+    check_file "$REPO_DIR/configs/hyprpaper/hyprpaper.conf" "$HOME/.config/hyprpaper/hyprpaper.conf"
+
+    # Nuit keybinds
+    check_file "$REPO_DIR/configs/nuit/keybinds.txt" "$HOME/.config/nuit/keybinds.txt"
+
+    echo
+    if [[ "$drift" -eq 0 ]]; then
+        note "all $checks checks passed — no drift detected"
+    else
+        warn "$drift of $checks checks failed — run 'just deploy' or 'nuit install' to sync"
+    fi
+}
+
+# ── main ─────────────────────────────────────────────────────────────────────
+case "${1:-}" in
+    up)      shift; cmd_up "$@" ;;
+    rollback) cmd_rollback ;;
+    doctor)  cmd_doctor ;;
+    -h|--help|"") usage ;;
+    *)       die "unknown command: $1 (try 'nuit --help')" ;;
+esac
