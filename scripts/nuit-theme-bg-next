@@ -54,4 +54,4 @@ else
   fi
 fi
 
-exec "$HOME/.local/bin/nuit-theme-bg-set" "$NEXT"
+exec "nuit-theme-bg-set" "$NEXT"
