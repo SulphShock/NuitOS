@@ -3,6 +3,6 @@
 # manager at all — no login screen when trying the OS. Installed systems use
 # LightDM+slick (written by nuit-installer) — this stanza only fires for
 # the live user, never for installed users.
-if [ "${USER:-}" = "nuitos" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && [ "${XDG_VTNR:-}" = 1 ]; then
+if [ "${USER:-}" = "nuitos" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
   exec Hyprland
 fi
