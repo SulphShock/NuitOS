@@ -49,7 +49,7 @@ if [ "$MODE" = "full" ]; then
     [ -d "$WALL_SRC" ] || die "missing canonical wallpapers: $WALL_SRC"
     [ -n "$(ls -A "$WALL_SRC" 2>/dev/null)" ] || die "no wallpapers in $WALL_SRC"
     for dest in "$REPO/iso/airootfs/usr/share/backgrounds" \
-                "$REPO/iso/airootfs/etc/skel/.config/nuit/backgrounds"; do
+                "$REPO/iso/airootfs/etc/skel/.config/nuit/backgrounds/default"; do
         mkdir -p "$dest"
         for f in "$dest"/*; do
             [ -e "$f" ] || continue
