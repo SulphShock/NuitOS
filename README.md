@@ -1,27 +1,34 @@
 
-# 🌙 Nuit OS
+# NuitOS
+
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Build](https://github.com/SulphShock/NuitOS/actions/workflows/build.yml/badge.svg)](https://github.com/SulphShock/NuitOS/actions/workflows/build.yml)
+[![Arch-based](https://img.shields.io/badge/Arch-Linux-black)](https://archlinux.org)
+[![Hyprland](https://img.shields.io/badge/Hyprland-blueviolet)](https://hyprland.org)
 
 > Arch Linux + Hyprland. Gruvbox-dark. Ready to work.
 
 A bootable, day-one desktop: tiling window manager, system topbar, app launcher, gruvbox-dark login theme, and a curated set of daily-use apps. Build it, boot it, work.
 
+> **ISO size:** ~2.8 GB (includes fonts, wallpapers, and a curated app set). larger than a minimal Arch install by design.
+
 ---
 
-## ✨ Features
+## Features
 
 - **Hyprland** — Tiling window manager configured for daily use
 - **QuickShell topbar** — D-Bus integrated status bar with quick settings, calendar, notifications
 - **App launcher** — in-shell Activities grid (Super+Space)
 - **Gruvbox-dark login** — LightDM + slick-greeter in gruvbox-dark, matching the desktop
 - **Curated packages** — Daily-use apps preinstalled (terminal, browser, editor, media); extend via `yay`
-- **CLI utilities** — Quick wrappers for common tasks
+- **CLI utilities** — Quick wrappers for common tasks (`nuit up`, `nuit doctor`)
 - **Reproducible builds** — Pure archiso profile in `iso/`
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 🐣 New to Linux? Start here
+### New to Linux? Start here
 
 You don't need Linux installed to try NuitOS — but you do need a USB stick (4 GB or larger) and about 30 minutes.
 
@@ -36,6 +43,23 @@ You don't need Linux installed to try NuitOS — but you do need a USB stick (4 
 6. **To install it for real**, open the app grid and launch **Nuit OS Installer**. It asks plain questions, shows a summary, and never touches anything before you type GO. (It will erase the disk you point it at — back up first.)
 
 Nothing you do in the live session touches your computer until the installer runs.
+
+### Fresh Arch install (on an existing system)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SulphShock/NuitOS/main/scripts/install.sh | bash
+```
+
+<details>
+<summary>Or clone and run manually</summary>
+
+```bash
+git clone https://github.com/SulphShock/NuitOS.git
+cd NuitOS
+./scripts/install.sh        # or: just install
+./scripts/install.sh --dry-run  # preview without changes
+```
+</details>
 
 ### Prerequisites (building the ISO yourself)
 
@@ -67,7 +91,7 @@ Done. You have a working desktop.
 
 ### Install to disk
 
-> ⚠️ **The installer permanently erases the target disk.** There is no undo — back up first.
+> **The installer permanently erases the target disk.** There is no undo — back up first.
 
 From the live session, run:
 
@@ -81,31 +105,52 @@ LUKS installs encrypt swap too (swapfile inside the encrypted root — no plain-
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 NuitOS/
-├── configs/              # Canonical application configs (edit these)
-│   ├── quickshell/       # Topbar (QuickShell/QML)
-│   ├── hyprland/         # Window manager
-│   ├── ghostty/          # Terminal
-│   └── ...
-├── iso/                  # archiso profile (pure ISO)
-│   ├── profiledef.sh     # ISO definition (required by archiso)
-│   ├── packages.x86_64   # Live-session packages
-│   ├── pacman.conf       # Pacman config for build
-│   └── airootfs/         # Files bundled into ISO
-│       ├── etc/skel/     # Default user dotfiles (mirrors of configs/, checked by nuit-release.sh)
-│       ├── usr/local/bin/# nuit-installer + nuit-* helpers
-│       └── usr/share/    # backgrounds, plymouth theme, greeter brand
-├── scripts/              # nuit-release.sh (guarded build + optional flash) + helpers
-├── out/                  # Build output ISO (gitignored)
-└── work/                 # Build tree (gitignored, needs sudo to clean)
+├── AGENTS.md                 # Agent ground truth
+├── CHANGELOG.md              # Release changelog
+├── CONTRIBUTING.md           # Contribution rules
+├── LICENSE                   # MIT license
+├── MAINTAINERS.md            # Release checklist
+├── README.md                 # This file
+├── SECURITY.md               # Vulnerability disclosure
+├── TESTING.md                # Evidence bundle
+├── configs/                  # Canonical application configs (edit these)
+│   ├── bin/                  # Helper scripts shipped as commands
+│   ├── Branding/             # Logo assets
+│   ├── fastfetch/            # Fastfetch config
+│   ├── ghostty/              # Terminal config
+│   ├── hypridle/             # Idle manager config
+│   ├── hyprland/             # Hyprland WM (split: env/appearance/rules/autostart/bindings)
+│   ├── hyprlock/             # Lock screen config
+│   ├── hyprpaper/            # Wallpaper daemon config
+│   ├── nvim/                 # Neovim config
+│   ├── quickshell/           # Topbar + widgets (QML)
+│   └── wallpapers/default/   # Canonical wallpaper set (WebP)
+├── iso/                      # archiso profile
+│   ├── airootfs/             # Files bundled into ISO
+│   ├── efiboot/              # UEFI systemd-boot entries
+│   ├── packages.x86_64       # Package list
+│   ├── pacman.conf           # Pacman config for build
+│   ├── profiledef.sh         # ISO definition (required by archiso)
+│   └── syslinux/             # BIOS syslinux config
+├── justfile                  # Task runner (diff/deploy/install)
+├── scripts/                  # Build + utility scripts
+│   ├── install.sh            # Fresh-Arch installer
+│   ├── nuit                  # System CLI (up/rollback/doctor)
+│   ├── nuit-release.sh       # ISO build + flash
+│   ├── nuit-installer        # Disk installer (archiso chroot)
+│   ├── nuit-aur-install      # AUR bootstrap (runs on first login)
+│   └── nuit-theme-bg-*       # Wallpaper cycling scripts
+└── .github/
+    └── workflows/            # CI: build, drift guard, release
 ```
 
 ---
 
-## 🎨 Customization
+## Customization
 
 All configs are **editable before build** or **after install** in `~/.config/`.
 
@@ -121,24 +166,24 @@ Then rebuild the ISO.
 
 ### Change the shell
 
-NuitOS ships **bash** by default. To use another shell, add it to `iso/packages.x86_64` and
-point the `-s` flag in `iso/airootfs/root/customize_airootfs.sh` at it:
+NuitOS ships **zsh** by default. To use another shell, add it to `iso/packages.x86_64` and
+change the shell in the install script:
 
 ```diff
-- useradd -m -G wheel,audio,video,storage,autologin -s /bin/bash nuitos
-+ useradd -m -G wheel,audio,video,storage,autologin -s /bin/fish nuitos
+- chsh -s /bin/zsh
++ chsh -s /bin/fish
 ```
 
 ### Use your own topbar
 
 Don't like the topbar? Comment out this line in `configs/hyprland/hyprland.conf`:
-```bash
-# exec-once = qs -d
+```
+# exec-once = qs -d -n
 ```
 
-Use waybar, eww, or nothing.
+Or nothing.
 
-### 💤 Idle (hypridle)
+### Idle (hypridle)
 
 Leave the machine alone and it dims itself: after 5 idle minutes a slow
 fade drifts over the screen, after 10 it locks, after 15 the display sleeps,
@@ -159,7 +204,7 @@ after 30 the machine suspends. Any key or mouse wiggle resets the timers.
 - **Add a stage:** copy a `listener` block and change the timeout + command
   (keep timeouts in ascending order). Each block documents its own knob.
 
-### 🌙 Night Light (hyprshade)
+### Night Light (hyprshade)
 
 Warms the screen after dark so late sessions are easier on the eyes
 (gentle 4500K screen shader via `hyprshade on nuit-night-light`; `hyprshade off` reverts —
@@ -169,12 +214,10 @@ gammastep can't work here, Hyprland has no gamma-control protocol).
   `qs ipc call gsb toggleNightLight`.
 - **Shader:** `configs/hyprland/shaders/nuit-night-light.glsl` (edit this one).
   Tune the temperature there; lower (e.g. 3500K) for a warmer screen.
-- **Legacy:** `configs/gammastep/config.ini` is kept for reference only and is
-  not launched by the session.
 
 ---
 
-## 🛠️ Building
+## Building
 
 ```bash
 sudo ./scripts/nuit-release.sh
@@ -193,7 +236,7 @@ sudo ./scripts/nuit-release.sh
 
 ---
 
-## 📦 What's Included (Base)
+## What's Included (Base)
 
 **Core:**
 - Arch Linux base + `linux` kernel
@@ -207,7 +250,7 @@ sudo ./scripts/nuit-release.sh
 
 **Essentials:**
 - `ghostty` (terminal)
-- `bash` (shell)
+- `zsh` (shell)
 - `neovim` + `vim` (editors)
 - `nautilus` (file manager)
 - NetworkManager (networking)
@@ -227,7 +270,7 @@ sudo ./scripts/nuit-release.sh
 
 ---
 
-## ⌨️ Keybinds
+## Keybinds
 
 Hyprland defaults:
 
@@ -254,11 +297,11 @@ Hyprland defaults:
 | <kbd>Super</kbd> + Click/Drag | Move/resize window |
 | <kbd>Super</kbd> + mouse wheel | Switch workspace |
 
-Full config: `configs/hyprland/` (entry `hyprland.conf` sources `env/appearance/rules/autostart`)
+Full config: `configs/hyprland/` (entry `hyprland.conf` sources `env/appearance/rules/autostart/bindings`)
 
 ---
 
-## 🖥️ System Info
+## System Info
 
 After boot:
 
@@ -268,22 +311,22 @@ $ fastfetch
 
 - **OS:** Nuit OS (Arch Linux)
 - **WM:** Hyprland
-- **Shell:** bash
+- **Shell:** zsh
 - **Terminal:** ghostty
 - **Font:** JetBrains Mono Nerd
 
 ---
 
-## 🆘 Stuck?
+## Stuck?
 
 - **Nothing boots / scary vendor error?** Secure Boot is almost certainly still on — see step 3 above.
 - **Black screen after login?** Wait 10 seconds (first start is slow), then press <kbd>Super</kbd>+<kbd>Return</kbd>. If a terminal opens, the system is fine — press <kbd>Super</kbd>+<kbd>F1</kbd> for the key list.
 - **Installer failed?** Re-run it with `nuit-installer --dry-run` and read the plan; then file an issue with your disk layout (`lsblk`) and where it stopped.
 - **Anything else:** [open an issue](https://github.com/SulphShock/NuitOS/issues) — say what you clicked, what you expected, and what happened instead (a phone photo of the screen is perfect).
 
-## 🤝 Contributing
+## Contributing
 
-Issues, feature requests, and PRs welcome.
+Issues, feature requests, and PRs welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for rules and [TESTING.md](TESTING.md) for the evidence bundle.
 
 **Keep it coherent.** Gruvbox-dark look, working defaults, no dead code. Big new features go in userland, not the ISO.
 
@@ -291,7 +334,7 @@ Issues, feature requests, and PRs welcome.
 
 ---
 
-## 🙏 Honorable mentions
+## Honorable mentions
 
 Thanks to the MIT projects this shell learned from. Code names what it does. Full sources in `configs/quickshell/NOTICE.md`.
 
@@ -300,17 +343,18 @@ Thanks to the MIT projects this shell learned from. Code names what it does. Ful
 - 3EYE3Y3/omarchy-capture-board - capture converter ideas
 - Manas-Kenge/omaview - TimeHub day file format ideas
 
-## 📜 License
+## License
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
 
 ---
 
-## 📚 References
+## References
 
 - [Arch Linux](https://archlinux.org)
 - [Hyprland Docs](https://hyprland.org)
 - [QuickShell](https://github.com/outfoxxed/quickshell)
+- [hyprshade](https://github.com/orian37/hyprshade)
 - [slick-greeter](https://github.com/linuxmint/slick-greeter) (LightDM greeter, gruvbox config)
 
 ---
