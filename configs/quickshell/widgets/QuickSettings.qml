@@ -78,7 +78,6 @@ Rectangle {
                 title: "Night Light"
                 subtitle: SysState.nightLight ? "On" : "Off"
                 active: SysState.nightLight
-                visible: SysState.hasNightLight
                 onClicked: SysState.setNightLight(!SysState.nightLight)
             }
             QSToggle {
@@ -87,7 +86,6 @@ Rectangle {
                 title: "System update"
                 subtitle: SysState.updateSubtitle
                 active: SysState.pendingUpdates > 0
-                visible: SysState.hasUpdateSupport
                 onClicked: SysState.runOsUpdate()
             }
             // Full-width keybinds shortcut (spans both columns).
