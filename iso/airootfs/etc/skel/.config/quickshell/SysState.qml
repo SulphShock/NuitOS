@@ -157,7 +157,7 @@ Singleton {
             : ["nmcli", "device", "wifi", "connect", ssid, "password", password]
         nmConnect.running = true
     }
-    Component.onCompleted: { refreshNetwork(); refreshBt(); blProbe.running = true; ppGet.running = true; whoami.running = true; remMkdir.running = true; nmMonitor.running = true; capCheck.start(); updCapCheck.start() }
+    Component.onCompleted: { refreshNetwork(); refreshBt(); blProbe.running = true; ppGet.running = true; whoami.running = true; remMkdir.running = true; nmMonitor.running = true; capCheck.running = true; updCapCheck.running = true }
 
     Process {
         id: whoami
