@@ -124,14 +124,14 @@ if [ "$MODE" = "full" ]; then
     note "build finished"
 fi
 
-ISO="$(ls "$ISO_DIR"/*.iso 2>/dev/null | sort -r | head -n1 || true)"
+ISO="$(find "$ISO_DIR" -maxdepth 1 -name '*.iso' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)"
 [ -n "$ISO" ] || die "no ISO found in $ISO_DIR"
 note "ISO: $ISO"
 ls -lh "$ISO"
 
 if [ -z "$DEV" ]; then
     echo
-    note "done. flash it later with: sudo $0 <usb-device>"
+    note "${GRN}done.${RST} flash it later with: sudo $0 <usb-device>"
     exit 0
 fi
 

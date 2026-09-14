@@ -147,5 +147,5 @@ echo
 if [[ "$DRY_RUN" -eq 1 ]]; then
     note "dry-run complete — no changes made"
 else
-    note "done. log out and back in (or reboot) for all changes to take effect."
+    note "${GRN}done.${RST} log out and back in (or reboot) for all changes to take effect."
 fi

@@ -23,6 +23,8 @@ done
 
 # Add to PATH if not already there
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    # Single quotes intentional: $HOME/$PATH must stay literal for the target shell.
+    # shellcheck disable=SC2016
     echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
 fi
 

@@ -13,7 +13,7 @@ DIR="${NUIT_SCREENRECORD_DIR:-$HOME/Videos}"
 if pgrep -x gpu-screen-recorder >/dev/null 2>&1; then
   pkill -INT -x gpu-screen-recorder
   sleep 1
-  LAST="$(ls -t "$DIR"/screenrecording-*.mp4 2>/dev/null | head -n1 || true)"
+  LAST="$(find "$DIR" -maxdepth 1 -type f -name 'screenrecording-*.mp4' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)"
   if [ -n "$LAST" ]; then
     notify-send -a Nuit "Recording stopped" "$(basename "$LAST")" 2>/dev/null || true
     echo "$LAST"
